@@ -1,18 +1,18 @@
 import { FormEvent, useState } from "react";
 import { Link } from "wouter";
 import { ScanEye, Shield, Zap, Database, Stethoscope, UserRound, HelpCircle, CheckCircle, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/useAuth";
 
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                <Shield className="w-4 h-4" />
-                AI-Powered Detection
-              </span>
-              <h1 className="mt-6 text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 dark:text-white leading-tight">
-                Detect Diabetic Retinopathy
-                <span className="text-primary block mt-2">Fast, explainable, and clinically useful</span>
-              </h1>
-              <p className="mt-4 text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-2xl">
-                Upload fundus images to get automated severity grading, confidence scores and heatmaps to support clinical decisions — securely and privately.
-              </p>
+export default function LandingPage() {
+  const { signInWithPassword, signUpWithPassword, isLoading, lastError } = useAuth();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [role, setRole] = useState<"patient" | "doctor">("patient");
+
   const [formState, setFormState] = useState({
     email: "",
     password: "",
