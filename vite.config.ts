@@ -11,7 +11,7 @@ export default defineConfig({
     // PWA plugin: install with `npm install -D vite-plugin-pwa`
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.png"],
+      includeAssets: ["favicon.svg"],
       manifest: {
         name: "RetinaAI - DR Detection",
         short_name: "RetinaAI",
@@ -21,14 +21,14 @@ export default defineConfig({
         theme_color: "#06b6d4",
         icons: [
           {
-            src: "/favicon.png",
-            sizes: "192x192",
-            type: "image/png"
+            src: "/favicon.svg",
+            sizes: "any",
+            type: "image/svg+xml"
           },
           {
-            src: "/favicon.png",
-            sizes: "512x512",
-            type: "image/png"
+            src: "/favicon.svg",
+            sizes: "any",
+            type: "image/svg+xml"
           }
         ]
       }
