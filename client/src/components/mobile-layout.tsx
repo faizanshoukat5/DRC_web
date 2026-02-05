@@ -46,13 +46,17 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
              </Link>
             ) : (
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <ScanEye className="w-5 h-5 text-white" />
-              </div>
+              <Link href="/">
+                <div className="flex items-center gap-3 cursor-pointer">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <ScanEye className="w-5 h-5 text-white" />
+                  </div>
+                  <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+                    {title || "RetinaAI"}
+                  </h1>
+                </div>
+              </Link>
             )}
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
-              {title || "RetinaAI"}
-            </h1>
           </div>
           
           {user ? (

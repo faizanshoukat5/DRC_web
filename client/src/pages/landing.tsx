@@ -1,15 +1,13 @@
 import { FormEvent, useState } from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
-import { ScanEye, Shield, Zap, Database, Stethoscope, UserRound, Building2, HelpCircle } from "lucide-react";
+import { ScanEye, Shield, Zap, Database, Stethoscope, UserRound, HelpCircle, CheckCircle, ArrowRight } from "lucide-react";
 
-import { MobileLayout } from "@/components/mobile-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
-import { cn } from "@/lib/utils";
 
 export default function LandingPage() {
   const { signInWithPassword, signUpWithPassword, isLoading, lastError } = useAuth();
@@ -61,350 +59,237 @@ export default function LandingPage() {
     (mode === "signup" && (!formState.name || (role === "doctor" && (!formState.licenseNumber || !formState.specialty))));
 
   return (
-    <MobileLayout title="RetinaAI">
-      <div className="min-h-full p-5 space-y-6 bg-slate-50">
-        <div className="space-y-6">
-          {/* Hero */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <ScanEye className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">RetinaAI</p>
-                <h1 className="text-2xl font-bold text-slate-900">Diabetic Retinopathy, detected in seconds.</h1>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="container flex h-16 items-center justify-between mx-auto px-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+              <ScanEye className="w-6 h-6 text-white" />
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Upload fundus images captured in-clinic or on your fundus camera; our ML model returns DR severity, confidence, and explainable heatmaps—every report stays synced for patients and doctors.
-            </p>
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              {[
-                { label: "Outputs", value: "DR grade + heatmaps" },
-                { label: "Turnaround", value: "< 45 sec" },
-                { label: "Input", value: "Fundus uploads" },
-              ].map((item) => (
-                <div key={item.label} className="rounded-2xl bg-slate-100 text-slate-800 border border-slate-200 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">{item.label}</p>
-                  <p className="font-semibold text-slate-900">{item.value}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Features */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="grid grid-cols-1 gap-3"
-          >
-            {[{
-              icon: Zap,
-              title: "Upload → AI",
-              desc: "You upload fundus images; our ML model returns DR severity, confidence, and heatmaps.",
-              tone: "bg-amber-50 text-amber-700 border-amber-100",
-            }, {
-              icon: Shield,
-              title: "Clinician-first",
-              desc: "Explainable outputs doctors can trust, with clear severity and confidence.",
-              tone: "bg-emerald-50 text-emerald-700 border-emerald-100",
-            }, {
-              icon: Database,
-              title: "Always synced",
-              desc: "Secure storage for images and reports, accessible by patients and assigned doctors.",
-              tone: "bg-sky-50 text-sky-700 border-sky-100",
-            }].map((item) => (
-              <Card
-                key={item.title}
-                className={cn("p-4 flex items-start gap-3 border shadow-sm", item.tone)}
-              >
-                <div className="w-10 h-10 rounded-xl bg-white/70 flex items-center justify-center border">
-                  <item.icon className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-slate-900">{item.title}</h3>
-                  <p className="text-sm text-slate-700 leading-snug">{item.desc}</p>
-                </div>
-              </Card>
-            ))}
-          </motion.div>
-
-          {/* Flows */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-1 gap-3"
-          >
-            <Card className="p-4 border-slate-200/70 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                  <UserRound className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">For patients</p>
-                  <p className="font-semibold text-slate-900">Simple, guided flow</p>
-                </div>
-              </div>
-              <ol className="space-y-2 text-sm text-slate-700 list-decimal list-inside">
-                <li>Create an account and pick your approved doctor.</li>
-                <li>Upload or view fundus reports shared by your doctor.</li>
-                <li>Track severity, AI confidence, and download PDFs anytime.</li>
-              </ol>
-            </Card>
-
-            <Card className="p-4 border-slate-200/70 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Stethoscope className="h-4 w-4 text-blue-700" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">For doctors</p>
-                  <p className="font-semibold text-slate-900">Built for clinics</p>
-                </div>
-              </div>
-              <ol className="space-y-2 text-sm text-slate-700 list-decimal list-inside">
-                <li>Get approved, then see only your assigned patients.</li>
-                <li>Upload fundus images; the model returns DR severity/confidence with heatmaps, then auto-generate reports.</li>
-                <li>Share results instantly; patients get notified and can download.</li>
-              </ol>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Auth Form */}
-        <motion.form
-          onSubmit={handleSubmit}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="w-full space-y-4 rounded-3xl bg-white border border-slate-200 shadow-lg shadow-slate-200/40 p-5"
-        >
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Access</p>
-              <h2 className="text-xl font-semibold text-slate-900">{mode === "signin" ? "Sign in" : "Create account"}</h2>
-            </div>
-            <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs">
-              {["signin", "signup"].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m as "signin" | "signup")}
-                  className={cn(
-                    "px-3 py-1 rounded-full transition",
-                    mode === m ? "bg-white shadow-sm text-slate-900" : "text-slate-600 hover:bg-white"
-                  )}
-                >
-                  {m === "signin" ? "Sign in" : "Sign up"}
-                </button>
-              ))}
-            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+              RetinaAI
+            </h1>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email address</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={formState.email}
-              onChange={(event) => setFormState((prev) => ({ ...prev, email: event.target.value }))}
-              required
-            />
-          </div>
-
-          {mode === "signup" && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="name">Full name</Label>
-                <Input
-                  id="name"
-                  value={formState.name}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Dr. Ada Lovelace"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[{ value: "patient", label: "Patient", icon: UserRound }, { value: "doctor", label: "Doctor", icon: Stethoscope }].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setRole(option.value as "patient" | "doctor")}
-                      className={cn(
-                        "flex items-center gap-2 rounded-lg border p-3 text-left transition",
-                        role === option.value ? "border-primary bg-primary/5" : "border-slate-200 hover:border-primary/50",
-                      )}
-                    >
-                      <option.icon className="h-4 w-4" />
-                      <span className="text-sm font-medium capitalize">{option.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  value={formState.phone}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, phone: event.target.value }))}
-                  placeholder="+1 555 123 4567"
-                />
-              </div>
-
-              {role === "patient" && (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="dob">Date of birth</Label>
-                      <Input
-                        id="dob"
-                        type="date"
-                        value={formState.dateOfBirth}
-                        onChange={(event) => setFormState((prev) => ({ ...prev, dateOfBirth: event.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
-                      <Input
-                        id="gender"
-                        value={formState.gender}
-                        onChange={(event) => setFormState((prev) => ({ ...prev, gender: event.target.value }))}
-                        placeholder="F / M / Other"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input
-                      id="address"
-                      value={formState.address}
-                      onChange={(event) => setFormState((prev) => ({ ...prev, address: event.target.value }))}
-                      placeholder="123 Retina Lane"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {role === "doctor" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="license">License number</Label>
-                    <Input
-                      id="license"
-                      value={formState.licenseNumber}
-                      onChange={(event) => setFormState((prev) => ({ ...prev, licenseNumber: event.target.value }))}
-                      placeholder="MED-12345"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="specialty">Specialty</Label>
-                    <Input
-                      id="specialty"
-                      value={formState.specialty}
-                      onChange={(event) => setFormState((prev) => ({ ...prev, specialty: event.target.value }))}
-                      placeholder="Ophthalmology"
-                      required
-                    />
-                  </div>
-                  <div className="col-span-1 md:col-span-2 text-xs text-slate-500 flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Doctor accounts require admin approval before accessing diagnostics.
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              value={formState.password}
-              onChange={(event) => setFormState((prev) => ({ ...prev, password: event.target.value }))}
-              placeholder="••••••••"
-              required
-            />
-          </div>
-
-          {(lastError || feedback) && (
-            <p className={cn("text-sm text-center min-h-6", lastError ? "text-red-500" : "text-emerald-600") }>
-              {lastError || feedback}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full h-12 text-base font-medium"
-            disabled={isLoading || isSubmitDisabled}
-          >
-            {isLoading ? "Working..." : mode === "signin" ? "Sign in" : "Create account"}
-          </Button>
-        </motion.form>
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="w-full text-center"
-        >
-          <p className="text-sm text-slate-500">
-            {mode === "signin" ? (
-              <>
-                Don&apos;t have an account?{" "}
-                <button
-                  type="button"
-                  className="text-primary underline-offset-4 hover:underline"
-                  onClick={() => setMode("signup")}
-                >
-                  Create one
-                </button>
-              </>
-            ) : (
-              <>
-                Already registered?{" "}
-                <button
-                  type="button"
-                  className="text-primary underline-offset-4 hover:underline"
-                  onClick={() => setMode("signin")}
-                >
-                  Sign in instead
-                </button>
-              </>
-            )}
-          </p>
-        </motion.div>
-
-        {/* FAQ Link */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="w-full"
-        >
-          <Link
-            href="/faq"
-            className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-primary transition-colors"
-          >
-            <HelpCircle className="h-4 w-4" />
-            <span>Have questions? Check our FAQ</span>
+          <Link href="/faq">
+            <Button variant="ghost" className="gap-2">
+              <HelpCircle className="w-4 h-4" />
+              Help & FAQ
+            </Button>
           </Link>
-        </motion.div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-6 py-12">
+        <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
+          {/* Left Side - Hero Content */}
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
+                <Shield className="w-4 h-4" />
+                AI-Powered Detection
+              </span>
+              <h1 className="text-5xl lg:text-6xl font-bold text-slate-900 dark:text-white leading-tight">
+                Diabetic Retinopathy
+                <span className="text-primary block mt-2">Detected in Seconds</span>
+              </h1>
+              <p className="text-xl text-slate-600 dark:text-slate-300">
+                Upload fundus images and get instant DR severity with AI confidence scores and explainable heatmaps.
+              </p>
+            </div>
+
+            {/* Features Grid */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              {[
+                { icon: Zap, title: "< 45 Seconds", desc: "Fast analysis" },
+                { icon: Shield, title: "Secure", desc: "HIPAA compliant" },
+                { icon: Database, title: "Cloud Storage", desc: "Access anywhere" },
+                { icon: CheckCircle, title: "95%+ Accuracy", desc: "Reliable AI" },
+              ].map((feature) => {
+                const Icon = feature.icon;
+                return (
+                  <Card key={feature.title} className="p-4 border-0 bg-white/60 dark:bg-slate-800/60">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Icon className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900 dark:text-white">{feature.title}</h3>
+                        <p className="text-sm text-slate-600">{feature.desc}</p>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Side - Auth Form */}
+          <Card className="p-8 border-0 shadow-2xl bg-white dark:bg-slate-900">
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                  ACCESS
+                </h2>
+                <p className="text-sm text-slate-600">Sign in or create account</p>
+              </div>
+
+              <Tabs value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="signin">Sign in</TabsTrigger>
+                  <TabsTrigger value="signup">Sign up</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value={mode} className="mt-6">
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {mode === "signup" && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Account Type</Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <Button
+                              type="button"
+                              variant={role === "patient" ? "default" : "outline"}
+                              className="h-16 flex-col gap-1"
+                              onClick={() => setRole("patient")}
+                            >
+                              <UserRound className="w-5 h-5" />
+                              <span>Patient</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={role === "doctor" ? "default" : "outline"}
+                              className="h-16 flex-col gap-1"
+                              onClick={() => setRole("doctor")}
+                            >
+                              <Stethoscope className="w-5 h-5" />
+                              <span>Doctor</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Full Name</Label>
+                          <Input
+                            value={formState.name}
+                            onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+                            placeholder="Your name"
+                          />
+                        </div>
+
+                        {role === "patient" && (
+                          <>
+                            <div className="space-y-2">
+                              <Label>Phone</Label>
+                              <Input
+                                type="tel"
+                                value={formState.phone}
+                                onChange={(e) => setFormState({ ...formState, phone: e.target.value })}
+                                placeholder="+1 555 555 5555"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>Date of birth</Label>
+                                <Input
+                                  type="date"
+                                  value={formState.dateOfBirth}
+                                  onChange={(e) => setFormState({ ...formState, dateOfBirth: e.target.value })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Gender</Label>
+                                <Input
+                                  value={formState.gender}
+                                  onChange={(e) => setFormState({ ...formState, gender: e.target.value })}
+                                  placeholder="Male / Female / Other"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Address</Label>
+                              <Input
+                                value={formState.address}
+                                onChange={(e) => setFormState({ ...formState, address: e.target.value })}
+                                placeholder="Street, City, Country"
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {role === "doctor" && (
+                          <>
+                            <div className="space-y-2">
+                              <Label>License Number</Label>
+                              <Input
+                                value={formState.licenseNumber}
+                                onChange={(e) => setFormState({ ...formState, licenseNumber: e.target.value })}
+                                placeholder="MD-123456"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Specialty</Label>
+                              <Input
+                                value={formState.specialty}
+                                onChange={(e) => setFormState({ ...formState, specialty: e.target.value })}
+                                placeholder="Ophthalmology"
+                              />
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>Email address</Label>
+                      <Input
+                        type="email"
+                        value={formState.email}
+                        onChange={(e) => setFormState({ ...formState, email: e.target.value })}
+                        placeholder="you@example.com"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={formState.password}
+                        onChange={(e) => setFormState({ ...formState, password: e.target.value })}
+                        placeholder="••••••••"
+                      />
+                    </div>
+
+                    {lastError && <p className="text-sm text-red-600">{lastError}</p>}
+                    {feedback && <p className="text-sm text-green-600">{feedback}</p>}
+
+                    <Button
+                      type="submit"
+                      className="w-full gap-2"
+                      size="lg"
+                      disabled={isSubmitDisabled || isLoading}
+                    >
+                      {isLoading ? "Loading..." : mode === "signin" ? "Sign in" : "Create account"}
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+
+              <div className="text-center">
+                <Link href="/faq">
+                  <span className="text-sm text-slate-600 hover:text-primary inline-flex items-center gap-1 cursor-pointer">
+                    <HelpCircle className="w-4 h-4" />
+                    Have questions? Check our FAQ
+                  </span>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
-    </MobileLayout>
+    </div>
   );
 }
