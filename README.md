@@ -1,444 +1,326 @@
-# DRC-APP
+﻿# Diabetic Retinopathy Detection and Stage Classification (RetinaAI) - Web Application
 
-DRC-APP is a full-stack diabetic retinopathy screening platform. It includes:
-
-- A web frontend (Vite + React) for administrators, doctors and patients.
-- An Express/Node backend that performs admin-level operations and uses the Supabase service role for privileged DB access.
-- An Expo React Native mobile app (in `mobile/`) which mirrors the web UI and is intended for on-device viewing and lightweight workflows.
-- Supabase PostgreSQL backend with Row Level Security (RLS) protecting patient data.
-
-This README documents the repository layout, local setup, running instructions, migration notes, and troubleshooting tips.
+ A full-stack web platform for diabetic retinopathy (DR) screening and stage classification. Built for clinicians and patients with AI-powered fundus image analysis, explainable heatmaps, and comprehensive scan history tracking.
 
 ---
 
-## Repository layout (important files)
+##  Features
 
-- `mobile/` — Expo React Native app (mobile client).
-- `client/` — Vite React web application (web client).
-- `server/` — Node/Express backend routes and API wrappers used by the web frontend.
-- `supabase/` — Supabase config and SQL migrations. See `supabase/migrations/`.
-- `shared/` — Shared types and DB schema definitions.
-
-Key files to note:
-
-- `mobile/src/lib/api.ts` — Mobile Supabase API wrapper and helper mappings (fixes for `timestamp` and `id` casting).
-- `supabase/migrations/20260128000000_add_admin_rls_policies.sql` — Migration that adds an `is_admin()` helper and policies to allow admins to SELECT/UPDATE `profiles`.
-- `client/src/pages/patient-dashboard.tsx` — Reference web patient dashboard used as a basis for the mobile patient dashboard.
-- `mobile/src/screens/FAQScreen.tsx` — Mobile FAQ screen (recently synced to match the web FAQ content).
+- **AI-Powered Detection**: Upload fundus images and receive DR severity classification with confidence scores
+- **Explainable AI**: Visual heatmaps highlight areas of concern for clinical validation
+- **Role-Based Access**: Separate dashboards for administrators, doctors, and patients
+- **Doctor-Patient Workflow**: Doctors upload scans for assigned patients; patients view their results
+- **Secure Storage**: All scans and reports stored securely via Supabase with Row Level Security (RLS)
+- **PDF Reports**: Downloadable reports with scan images, severity grades, and AI confidence scores
+- **Admin Panel**: Approve doctor registrations and manage platform users
 
 ---
 
-## Quick Start (development)
+##  Table of Contents
 
-Prerequisites
+- [Tech Stack](#-tech-stack)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Environment Setup](#-environment-setup)
+- [Database Setup](#-database-setup)
+- [Running the Application](#-running-the-application)
+- [Project Structure](#-project-structure)
+- [API Endpoints](#-api-endpoints)
+- [Security & RLS](#-security--rls)
+- [Deployment](#-deployment)
+- [Contributing](#-contributing)
 
-- Node.js (16+ recommended)
-- npm (or pnpm/yarn)
-- Git
-- For mobile: Expo CLI (optional, we use `npx expo` so global install is not required)
-- Supabase CLI if you plan to run migrations from CLI: `npm install -g supabase` or use `npx supabase`
+---
 
-1) Clone the repo (if not already):
+##  Tech Stack
+
+**Frontend:**
+- React 19 with TypeScript
+- Vite (build tool)
+- TailwindCSS + shadcn/ui components
+- React Query for data fetching
+- React Router for navigation
+
+**Backend:**
+- Node.js + Express
+- Supabase (PostgreSQL + Auth + Storage)
+- Service role for privileged operations
+
+**AI/ML:**
+- Fundus image analysis (model integration ready)
+- Heatmap generation for explainability
+
+---
+
+##  Prerequisites
+
+- **Node.js** 18+ (with npm)
+- **Git**
+- **Supabase account** (free tier works)
+- **Supabase CLI** (optional but recommended): `npm install -g supabase`
+
+---
+
+##  Installation
+
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/faizanshoukat5/DRC-APP.git
-cd DRC-APP
+git clone https://github.com/faizanshoukat5/DRC_web.git
+cd DRC_web
 ```
 
-2) Install dependencies
-
-Root (installs server + client tools):
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-Mobile app (separate folder):
+This installs all dependencies for both the client and server.
 
-```bash
-cd mobile
-npm install
+---
+
+##  Environment Setup
+
+You need to configure environment variables for both the **client** and **server**.
+
+### Client Environment Variables
+
+Create `client/.env`:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_public_key
 ```
 
-3) Environment variables
+### Server Environment Variables
 
-This project uses Supabase. Create a `.env` file (or set env vars in your shell) for each component.
+Create `server/.env` (or set in your deployment environment):
 
-- For the mobile client (in `mobile/.env` or environment):
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+PORT=3000
+```
 
-  - `EXPO_PUBLIC_SUPABASE_URL` = your Supabase URL
-  - `EXPO_PUBLIC_SUPABASE_ANON_KEY` = your Supabase anon public key
+** Security Warning:** Never commit your `SUPABASE_SERVICE_ROLE_KEY` to version control. Add `.env` to `.gitignore`.
 
-- For the server (in `server/.env`):
+---
 
-  - `SUPABASE_URL` = your Supabase URL
-  - `SUPABASE_SERVICE_ROLE_KEY` = **service_role** key (keep secret)
-  - `PORT` = optional server port (default 3000)
+##  Database Setup
 
-Never commit your service role key to source control.
+### 1. Create a Supabase Project
 
-4) Apply Supabase migrations
+Go to [supabase.com](https://supabase.com) and create a new project. Note your project URL and keys.
 
-The repo contains SQL migrations under `supabase/migrations/`. The most important migration to be aware of is:
+### 2. Apply Database Migrations
 
-`supabase/migrations/20260128000000_add_admin_rls_policies.sql`
+The `supabase/migrations/` folder contains all SQL migrations to set up your database schema.
 
-It creates an `is_admin()` helper and adds RLS policies enabling admins to SELECT and UPDATE the `profiles` table from the client (when appropriate).
-
-You can apply migrations via the Supabase CLI (recommended) or paste the SQL into the Supabase SQL editor (UI).
-
-Using the Supabase CLI (example):
+**Option A: Using Supabase CLI (Recommended)**
 
 ```bash
-# from the repo root (ensure supabase CLI is installed and you're logged in/linked to the project)
+# Link your local project to your Supabase project
+npx supabase link --project-ref your_project_ref
+
+# Push all migrations
 npx supabase db push
 ```
 
-Or open the Supabase dashboard → SQL Editor and run the SQL file content.
+**Option B: Manual SQL Execution**
 
-Important: If you prefer to keep strict RLS, you can instead call admin endpoints on the server which use the service role and bypass RLS. The server has endpoints under `server/routes.ts` that use the `supabaseAdmin` client.
+Copy and run each migration file in order via the Supabase Dashboard  SQL Editor:
 
-5) Run the backend server
+1. `20251213113312_create_scans_table.sql`
+2. `20251213170500_add_profiles.sql`
+3. `20251216151908_add_service_role_to_profiles.sql`
+4. `20251219000000_add_doctor_patient_relationships.sql`
+5. `20260128000000_add_admin_rls_policies.sql`
+
+### 3. Enable Storage Bucket
+
+Create a storage bucket named `fundus_images` in your Supabase project:
+
+1. Go to **Storage** in Supabase Dashboard
+2. Create new bucket: `fundus_images`
+3. Set appropriate policies (public read or authenticated read depending on requirements)
+
+---
+
+##  Running the Application
+
+### Development Mode
+
+#### 1. Start the backend server
 
 ```bash
-cd server
-npm install
 npm run dev
 ```
 
-The server uses the service role key to perform admin actions (e.g., listing pending doctors). Keep the server protected; do not expose your service role key in client bundles.
+This starts the Express server (default: `http://localhost:3000`) and Vite dev server (default: `http://localhost:5173`).
 
-6) Run the web client (Vite)
+The dev script runs both server and client concurrently.
+
+#### 2. Access the application
+
+Open your browser to:
+
+```
+http://localhost:5173
+```
+
+### Production Build
 
 ```bash
-# from repo root
-npm run dev
-```
-
-7) Run the mobile Expo app
-
-```bash
-cd mobile
-npx expo start --tunnel --clear
-```
-
-Scan the QR code with Expo Go or open in a simulator/emulator. If you have an Android device connected, press `a` to open directly.
-
----
-
-## Notes about RLS and admin visibility
-
-- The mobile app uses the Supabase anon client and is therefore subject to Row Level Security. Previously, admins could not list pending doctors from the mobile client because RLS only allowed owners to select their own `profiles` rows.
-- To allow admin reads/updates from the mobile client we added the migration `supabase/migrations/20260128000000_add_admin_rls_policies.sql`. Apply it to your Supabase project to enable admin view in the mobile client.
-- If you do not want to open admin-level RLS to the anon client, use the server endpoints (they use the `supabaseAdmin` service role client) to fetch admin-only data and proxy it to the client.
-
----
-
-## Project architecture and important behaviors
-
-- Mobile `api.ts` mappings: the `scans` table uses a `timestamp` column (not `created_at`), and `id` values are stored as bigint — we cast them to strings when returning to the client.
-- Patients cannot upload fundus images from the patient dashboard; upload and analysis features are restricted to the `doctor` role. The mobile navigator registers the `Analysis` route only for doctors.
-- The server contains endpoints that require the service role (privileged) — avoid calling `supabaseAdmin` from browser/mobile clients.
-
----
-
-## Troubleshooting
-
-- Expo errors about SDK: make sure you're in the `mobile/` folder when running `npx expo start`.
-- If `npx supabase db push` opens a different process, ensure your current working directory is the repo root and the `supabase` folder exists.
-- If RLS blocks admin reads on mobile, either apply the admin RLS migration or use the backend admin endpoints.
-
----
-
-## Contributing
-
-1. Fork the repo and create a feature branch.
-2. Implement changes and add tests where possible.
-3. Open a Pull Request describing the change and link any related issues.
-
-If you're adding DB migrations, include them under `supabase/migrations/` and document the reasoning.
-
----
-
-Last updated: 2026-01-28
-# RetinaAI — Diabetic Retinopathy Screening Platform
-
-🔬 RetinaAI is a compact, clinician-first application for diabetic retinopathy (DR) screening. It includes a React + Vite frontend, an Express server API that integrates with Supabase for storage and auth, and a simple scan storage and retrieval system with a stubbed inference flow (replaceable by a real model).
-
----
-
-## Table of Contents
-
-- 🚀 Quick start
-- 🧩 Architecture
-- ⚙️ Prerequisites & Environment
-- 💻 Local development
-- 📦 Build & Production
-- 🗂 Data model & API reference
-- 🧪 Testing & QA (recommendations)
-- 🔒 Security & privacy
-- 🛠 Extending the inference/model pipeline
-- 🧭 Project layout & key files
-- 🤝 Contributing
-- 📄 Additional docs
-
----
-
-## 🚀 Quick start
-
-1. Clone the repo:
-
-```bash
-git clone <repo-url>
-cd DRC-APP
-```
-
-2. Install dependencies (npm):
-
-```bash
-npm install
-# or your package manager of choice (pnpm, yarn)
-```
-
-3. Create environment variables (see `.env.example` guidance below).
-
-4. Start development servers (run server + client in two terminals):
-
-PowerShell (Windows):
-
-```powershell
-$env:NODE_ENV = 'development'
-npm run dev     # starts the Express server (server/index.ts)
-npm run dev:client  # in another terminal starts Vite client (port 5173)
-```
-
-Note: `npm run dev` sets NODE_ENV directly inline in package.json; using PowerShell, prefixing with `$env:NODE_ENV = 'development'` ensures it works on Windows.
-
----
-
-## 🧩 Architecture (High level)
-
-- Client: Vite + React + TypeScript, Tailwind CSS, TanStack Query and shadcn-style UI primitives.
-- Server: Express.js TypeScript API (server/), uses Supabase admin client for DB/storage.
-- Shared: Zod schemas and Drizzle table definitions under `shared/schema.ts`.
-- Storage: Supabase buckets for images and a `scans` table for results.
-
-Key design goals:
-- Clinician-first UI (mobile container layout), role-based routing (patient, doctor, admin).
-- Simple server-side API for image upload, scan creation, and user/profile management.
-- Replaceable inference pipeline; currently uses a placeholder (server/routes.ts).
-
----
-
-## ⚙️ Prerequisites & Environment Variables
-
-Required global tools (recommended):
-- Node.js (>=18 LTS)
-- npm (or pnpm / yarn)
-- A Supabase project (or a local Supabase setup)
-
-Important environment variables:
-
-For client (Vite):
-- VITE_SUPABASE_URL
-- VITE_SUPABASE_ANON_KEY
-
-For server (Express):
-- SUPABASE_URL
-- SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY for lower privileges)
-- PORT (optional, defaults to 5000)
-
-Example `.env` values (do NOT commit secrets):
-
-```
-VITE_SUPABASE_URL=https://xyz.supabase.co
-VITE_SUPABASE_ANON_KEY=public-anon-key
-SUPABASE_URL=https://xyz.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=service-role-key
-PORT=5000
-```
-
-Notes:
-- Client uses Vite env vars prefixed with `VITE_`.
-- The server expects a service role key for admin operations (create/read scans, manage profiles).
-
----
-
-## 💻 Local development
-
-Recommended workflow:
-
-1. Ensure env vars are configured.
-2. Start the server (PowerShell):
-
-```powershell
-$env:NODE_ENV = 'development'
-npm run dev
-```
-
-3. Start the client in a separate terminal:
-
-```powershell
-npm run dev:client
-```
-
-4. Open the client at http://localhost:5173 and the server on the port shown (default 5000).
-
-Helpful scripts (from package.json):
-- `npm run dev:client` — run the front-end (Vite).
-- `npm run dev` — run the server in dev mode using `tsx`.
-- `npm run build` — runs server build script (`script/build.ts`) which builds production bundles.
-- `npm run start` — run the built server bundle.
-- `npm run check` — TypeScript type check.
-- `npm run db:push` — push Drizzle migrations to the DB.
-
----
-
-## 📦 Build & Production
-
-1. Build (single command):
-
-```bash
+# Build the client
 npm run build
+
+# Start production server
+npm start
 ```
 
-2. Start production server (after build):
+The server will serve the built client from `dist/public`.
+
+---
+
+##  Project Structure
+
+```
+DRC_web/
+ client/                 # React frontend
+    src/
+       components/    # UI components (shadcn/ui)
+       pages/         # Page components
+       hooks/         # Custom React hooks
+       lib/           # API client, utils, Supabase config
+       main.tsx       # Entry point
+    index.html
+    public/            # Static assets
+ server/                # Express backend
+    index.ts           # Server entry
+    routes.ts          # API routes
+    storage.ts         # Supabase storage helpers
+    supabaseClient.ts  # Service role client
+ shared/                # Shared TypeScript types
+    schema.ts          # Database schema types
+ supabase/              # Database migrations
+    config.toml
+    migrations/
+ docs/                  # Documentation
+ script/                # Build scripts
+ package.json
+ tsconfig.json
+ vite.config.ts
+```
+
+---
+
+##  API Endpoints
+
+The Express server (`server/routes.ts`) provides privileged endpoints that use the service role:
+
+- `GET /api/admin/pending-doctors` - List doctors pending approval (admin only)
+- `POST /api/admin/approve-doctor/:id` - Approve a doctor registration
+- `GET /api/scans` - List scans (with RLS filtering)
+- `POST /api/upload` - Upload fundus images to storage
+
+See `server/routes.ts` for full endpoint documentation.
+
+---
+
+##  Security & RLS
+
+### Row Level Security (RLS)
+
+All database tables have RLS policies to ensure data isolation:
+
+- **Patients** can only view their own scans
+- **Doctors** can view scans for their assigned patients
+- **Admins** have elevated permissions via `is_admin()` helper function
+
+### Admin RLS Policy
+
+The migration `20260128000000_add_admin_rls_policies.sql` creates:
+
+1. An `is_admin()` SQL function that checks if the current user has `role = 'admin'`
+2. RLS policies allowing admins to SELECT and UPDATE the `profiles` table
+
+### Best Practices
+
+- **Never expose service role key** to client code
+- Use the **anon key** in client environments
+- Leverage **server endpoints** for privileged operations
+- Validate user roles on the backend before performing sensitive actions
+
+---
+
+##  Deployment
+
+### Deploy to Vercel/Netlify (Frontend + Serverless Functions)
+
+1. Push to GitHub
+2. Connect your repo to Vercel/Netlify
+3. Set environment variables in deployment settings
+4. Deploy
+
+### Deploy to VPS (Full-stack)
 
 ```bash
-NODE_ENV=production npm start
-# or on PowerShell
-$env:NODE_ENV = 'production'; npm start
+# Build the app
+npm run build
+
+# Run with PM2 or similar
+pm2 start server/index.js --name drc-web
 ```
 
-Deployment recommendations:
-- Client: Vercel, Netlify, or static hosting from the built assets.
-- Server: Host on Railway, Fly.io, Render, or a VPS. Ensure your Supabase keys and DB are provided as environment variables in the host.
-- For a single-host deployment, `script/build.ts` helps bundle and produce runnable server artifacts.
+### Supabase Setup
+
+Ensure your Supabase project is in production mode with:
+- All migrations applied
+- Storage bucket configured
+- Auth providers enabled
+- API keys secured
 
 ---
 
-## 🗂 Data Model & API Reference
+##  Contributing
 
-Shared schema: `shared/schema.ts` (Zod + Drizzle definitions)
+We welcome contributions! To contribute:
 
-Scans table (key fields):
-- id, patient_id, timestamp
-- original_image_url, heatmap_image_url
-- diagnosis, severity, confidence
-- model_version, inference_mode, inference_time, preprocessing_method
-- metadata (JSON)
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes: `git commit -m 'Add some feature'`
+4. Push to the branch: `git push origin feature/your-feature`
+5. Open a Pull Request
 
-Server API highlights (prefix `/api`):
+### Code Style
 
-- Auth & Profiles
-  - `GET /api/auth/me` — authenticated profile
-  - `POST /api/auth/profile` — create/update profile after sign-up
-
-- Admin
-  - `GET /api/admin/doctors/pending` — pending doctors (admin only)
-  - `POST /api/admin/doctors/:id/approve` — approve doctor (admin)
-  - `POST /api/admin/doctors/:id/reject` — reject doctor (admin)
-
-- Doctor/Patient relationships
-  - `GET /api/doctors/approved` — list approved doctors
-  - `POST /api/patient/select-doctor` — patient selects a doctor (patient only)
-  - `GET /api/patient/my-doctor` — get assigned doctor (patient only)
-  - `GET /api/doctor/my-patients` — get patients assigned to a doctor (doctor only)
-
-- Scans
-  - `GET /api/scans` — list scans (filter by role)
-  - `GET /api/scans/recent?limit=n` — recent scans
-  - `GET /api/scans/:id` — single scan
-  - `POST /api/scans` — create scan (approved doctor)
-  - `POST /api/doctor/upload` — image upload (multer) + placeholder inference
-  - `GET /api/patients/:patientId/scans` — patient scans (approved doctor)
-
-Auth: protected endpoints expect an Authorization header `Bearer <access_token>` (client uses a Supabase session token).
+- Use TypeScript for type safety
+- Follow existing code structure and naming conventions
+- Add comments for complex logic
+- Test your changes locally before submitting PR
 
 ---
 
-## 🧪 Testing & QA (Recommendations)
+##  Additional Resources
 
-Current project does not include automated tests. Suggested additions:
-- Unit tests: Jest + ts-jest for server-side logic and React component tests.
-- Integration: Supertest for API routes, testing auth flows and DB interactions (against a test DB).
-- E2E: Playwright or Cypress for user flows (login, upload, results export).
-
-Add CI (GitHub Actions) to run type checks, lint, tests, and optional build.
+- **Supabase Documentation**: https://supabase.com/docs
+- **React Query**: https://tanstack.com/query/latest
+- **shadcn/ui**: https://ui.shadcn.com
+- **TailwindCSS**: https://tailwindcss.com
 
 ---
 
-## 🔒 Security & Privacy
+##  License
 
-- Use Supabase policies and restricted service role keys only on the server.
-- Never commit `.env` with keys; store secrets in the host's secret manager.
-- Ensure HTTPS in production. Consider logging and audit trails for patient data access.
+This project is for educational and research purposes. Please ensure compliance with healthcare data regulations (HIPAA, GDPR, etc.) when deploying in production.
 
 ---
 
-## 🛠 Extending the inference/model pipeline
+##  Support
 
-Current behavior: `/api/doctor/upload` performs a placeholder inference and stores a stubbed `scan` record. To integrate a real model:
-
-1. Implement an inference service:
-   - Option A: Containerized model server (FastAPI / Flask) with GPU access.
-   - Option B: Cloud endpoint (GCP, AWS SageMaker) with a REST API.
-   - Option C: On-device TFLite for local/edge inference (then send results to server).
-
-2. Replace the placeholder inference in `server/routes.ts` with a call to your model service. Steps:
-   - Upload image to Supabase storage (already present in route).
-   - Call model endpoint with image or storage URL.
-   - Retrieve prediction (diagnosis, severity, confidence) and heatmap image.
-   - Persist to `scans` table via `storage.createScan()` including `heatmapImageUrl`.
-
-3. Considerations:
-   - Performance: async model calls, queueing (e.g., RabbitMQ) for high throughput.
-   - Security: validate model responses, sanitize image URLs.
-   - Explainability: save and surface heatmap overlays as images/URLs.
+For issues, questions, or feature requests, please open an issue on GitHub.
 
 ---
 
-## 🧭 Project layout & key files
-
-Top-level layout (important files & folders):
-
-- client/ — React front-end (Vite)
-  - src/
-    - App.tsx — role-based routing and providers
-    - pages/ — screens (landing, home, dashboards, results, analysis, faq, etc.)
-    - components/ — `mobile-layout` and UI primitives
-    - lib/ — `api.ts`, `supabaseClient.ts`, `queryClient.ts`
-    - hooks/ — `useAuth.ts`, `use-mobile.tsx`
-    - index.css — theme tokens & CSS variables
-
-- server/ — Express API
-  - index.ts — server bootstrap
-  - routes.ts — main API route handlers
-  - storage.ts — DB wrapper for scans
-  - supabaseClient.ts — admin client & config
-
-- shared/
-  - schema.ts — Zod + Drizzle schema (source-of-truth)
-
-- supabase/ — migrations & config (if using Supabase migrations locally)
-- docs/design-implementation.md — design & component documentation
-- docs/design-implementation.doc — Word-compatible doc (auto-generated)
-
----
-
-## 🤝 Contributing
-
-- Fork & branch from `main`.
-- Add unit tests and update docs when changing behavior.
-- Follow TypeScript strictness & run `npm run check` before PR.
-
-Suggested PR checklist:
-- [ ] Type checks pass (`npm run check`).
-- [ ] New features include tests.
-- [ ] Update `docs/design-implementation.md` when changing UI, API, or data shape.
-
----
-
-## 📄 Additional docs
-- Design and component documentation: `docs/design-implementation.md` and `docs/design-implementation.doc` 📁
-- Database migrations: `supabase/migrations/`
+**Last Updated:** February 2026
