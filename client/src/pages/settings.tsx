@@ -1,4 +1,4 @@
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,7 +7,7 @@ import { Cloud, Smartphone, Wifi, Shield, Database, Moon } from "lucide-react";
 
 export default function SettingsPage() {
   return (
-    <MobileLayout title="Settings">
+    <WebLayout title="Settings">
       <div className="p-6 space-y-8">
         
         {/* Inference Preferences */}
@@ -101,6 +101,6 @@ export default function SettingsPage() {
         </div>
 
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

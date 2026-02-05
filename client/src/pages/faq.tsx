@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import {
   Accordion,
   AccordionContent,
@@ -138,7 +138,7 @@ const faqCategories = [
 
 export default function FAQPage() {
   return (
-    <MobileLayout title="FAQ">
+    <WebLayout title="FAQ">
       <div className="min-h-full p-5 space-y-6 bg-slate-50 pb-24">
         {/* Header */}
         <motion.div
@@ -224,6 +224,6 @@ export default function FAQPage() {
           </Card>
         </motion.div>
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

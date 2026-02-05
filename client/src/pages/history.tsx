@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -54,16 +54,16 @@ export default function HistoryPage() {
 
   if (isLoading) {
     return (
-      <MobileLayout title="History">
+      <WebLayout title="History">
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </MobileLayout>
+      </WebLayout>
     );
   }
 
   return (
-    <MobileLayout title="Scan History">
+    <WebLayout title="Scan History">
       <div className="p-4 md:p-6 space-y-6 pb-24">
         {/* Header */}
         <div className="space-y-1">
@@ -183,6 +183,6 @@ export default function HistoryPage() {
           </motion.div>
         )}
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

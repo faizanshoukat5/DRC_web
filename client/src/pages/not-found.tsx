@@ -1,4 +1,4 @@
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Home } from "lucide-react";
 import { Link } from "wouter";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <MobileLayout title="Error 404" showBack>
+    <WebLayout title="Error 404">
       <div className="h-full flex items-center justify-center p-6">
         <Card className="w-full border-none shadow-none bg-transparent">
           <CardContent className="flex flex-col items-center text-center space-y-4">
@@ -27,6 +27,6 @@ export default function NotFound() {
           </CardContent>
         </Card>
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

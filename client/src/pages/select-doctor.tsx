@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +73,7 @@ export default function SelectDoctor() {
   // If patient already has a doctor, show their info
   if (myDoctor && !selectDoctorMutation.isPending) {
     return (
-      <MobileLayout title="Your Doctor">
+      <WebLayout title="Your Doctor">
         <div className="p-4 md:p-6 space-y-6 pb-24">
           <div className="space-y-1">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -132,12 +132,12 @@ export default function SelectDoctor() {
             </Button>
           </div>
         </div>
-      </MobileLayout>
+      </WebLayout>
     );
   }
 
   return (
-    <MobileLayout title="Select Doctor">
+    <WebLayout title="Select Doctor">
       <div className="p-4 md:p-6 space-y-6 pb-24">
         {/* Header */}
         <div className="space-y-1">
@@ -285,6 +285,6 @@ export default function SelectDoctor() {
           </Card>
         )}
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

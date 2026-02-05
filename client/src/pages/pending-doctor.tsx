@@ -1,10 +1,10 @@
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { Card } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
 
 export default function PendingDoctor() {
   return (
-    <MobileLayout title="Awaiting Approval">
+    <WebLayout title="Awaiting Approval">
       <div className="p-6 space-y-4">
         <Card className="p-5 space-y-3 text-center">
           <div className="w-14 h-14 mx-auto rounded-full bg-amber-100 flex items-center justify-center">
@@ -16,6 +16,6 @@ export default function PendingDoctor() {
           </p>
         </Card>
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

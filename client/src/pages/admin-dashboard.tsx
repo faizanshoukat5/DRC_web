@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
@@ -67,7 +67,7 @@ export default function AdminDashboard() {
   }, []);
 
   return (
-    <MobileLayout title="Admin Dashboard">
+    <WebLayout title="Admin Dashboard">
       <div className="p-6 space-y-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Pending doctors</h1>
@@ -115,6 +115,6 @@ export default function AdminDashboard() {
           )}
         </Card>
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

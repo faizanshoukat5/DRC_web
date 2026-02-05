@@ -1,4 +1,4 @@
-import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Info, Share2, Download, ChevronUp, Image as ImageIcon } from "lucide-react";
@@ -14,8 +14,9 @@ import { format } from "date-fns";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
-import baseImage from '@assets/generated_images/high-quality_retinal_fundus_image_for_medical_analysis..png';
-import heatmapImage from '@assets/generated_images/retinal_fundus_image_with_grad-cam_heatmap_overlay..png';
+// Placeholder images - these will be replaced with actual scan images from Supabase
+// import baseImage from '@assets/generated_images/high-quality_retinal_fundus_image_for_medical_analysis..png';
+// import heatmapImage from '@assets/generated_images/retinal_fundus_image_with_grad-cam_heatmap_overlay..png';
 
 export default function ResultsPage() {
   const [, params] = useRoute("/results/:id");
@@ -87,11 +88,11 @@ export default function ResultsPage() {
 
   if (isLoading || !scan) {
     return (
-      <MobileLayout title="Loading..." showBack>
+      <WebLayout title="Loading..." showBack>
         <div className="h-full flex items-center justify-center">
           <div className="animate-pulse text-slate-400">Loading scan results...</div>
         </div>
-      </MobileLayout>
+      </WebLayout>
     );
   }
 
@@ -105,19 +106,19 @@ export default function ResultsPage() {
   };
 
   return (
-    <MobileLayout title="Analysis Results" showBack>
+    <WebLayout title="Analysis Results" showBack>
       <div className="flex flex-col min-h-full pb-24">
         
         {/* Image Section */}
         <div className="relative aspect-square w-full bg-black overflow-hidden group">
            <img 
-             src={baseImage} 
+             src={scan?.originalImageUrl} 
              alt="Fundus Original" 
              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
              data-testid="img-fundus-original"
            />
            <motion.img 
-             src={heatmapImage} 
+             src={scan?.heatmapImageUrl} 
              alt="Fundus Heatmap" 
              className="absolute inset-0 w-full h-full object-cover"
              initial={{ opacity: 0 }}
@@ -247,6 +248,6 @@ export default function ResultsPage() {
           </div>
         </div>
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }

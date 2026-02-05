@@ -1,4 +1,5 @@
 import { MobileLayout } from "@/components/mobile-layout";
+import { WebLayout } from "@/components/web-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -133,8 +134,8 @@ export default function DoctorDashboard() {
   };
 
   return (
-    <MobileLayout title="Doctor Dashboard">
-      <div className="p-4 md:p-6 space-y-6 pb-24">
+    <WebLayout title="Doctor Dashboard">
+      <div className="space-y-8 max-w-7xl">
         {/* Header */}
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome, Doctor</h1>
@@ -412,6 +413,6 @@ export default function DoctorDashboard() {
           )}
         </div>
       </div>
-    </MobileLayout>
+    </WebLayout>
   );
 }
