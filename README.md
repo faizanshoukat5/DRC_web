@@ -179,7 +179,7 @@ npm run build
 npm start
 ```
 
-The server will serve the built client from `dist/public`.
+The server will serve the built client from `dist`.
 
 ---
 

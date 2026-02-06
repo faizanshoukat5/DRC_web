@@ -41,8 +41,8 @@ export default function AnalysisPage() {
       setTimeout(() => {
         createScanMutation.mutate({
           patientId: `P-${Math.floor(1000 + Math.random() * 9000)}`,
-          originalImageUrl: "/api/placeholder-fundus.jpg",
-          heatmapImageUrl: "/api/placeholder-heatmap.jpg",
+          originalImageUrl: "/opengraph.jpg",
+          heatmapImageUrl: "/opengraph.jpg",
           diagnosis: "Severe DR",
           severity: "severe",
           confidence: 98,

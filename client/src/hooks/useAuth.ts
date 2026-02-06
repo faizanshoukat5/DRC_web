@@ -184,29 +184,35 @@ export function useAuth() {
         throw new Error("Sign-up succeeded but no session was returned. Please verify your email and try again.");
       }
 
-      const response = await fetch("/api/auth/profile", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
+      // Create the profile directly in Supabase (no server API required)
+      const userId = data.user?.id;
+      if (!userId) {
+        setIsLoading(false);
+        throw new Error("Missing user id after sign-up");
+      }
+
+      // Doctors must be approved by admin; patients are auto-approved
+      const status = role === "doctor" ? "pending" : "approved";
+
+      const { error: insertErr } = await supabase.from("profiles").insert([
+        {
+          id: userId,
           role,
+          status,
           email,
           name: profileData.name,
           phone: profileData.phone,
-          dateOfBirth: profileData.dateOfBirth,
+          date_of_birth: profileData.dateOfBirth,
           gender: profileData.gender,
           address: profileData.address,
-          licenseNumber: profileData.licenseNumber,
+          license_number: profileData.licenseNumber,
           specialty: profileData.specialty,
-        }),
-      });
+        },
+      ]);
 
-      if (!response.ok) {
-        const message = await response.text();
+      if (insertErr) {
         setIsLoading(false);
-        throw new Error(message || "Failed to create profile");
+        throw new Error(insertErr.message || "Failed to create profile");
       }
 
       try {

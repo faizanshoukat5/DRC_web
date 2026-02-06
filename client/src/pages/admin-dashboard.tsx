@@ -44,8 +44,32 @@ export default function AdminDashboard() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await authFetch<PendingDoctor[]>("/api/admin/doctors/pending");
-      setDoctors(data);
+      // Try server-side API first (preferred for production)
+      try {
+        const pending = await authFetch<PendingDoctor[]>('/api/admin/doctors/pending');
+        setDoctors(pending ?? []);
+      } catch (e: any) {
+        // If server is not available (static hosting), fall back to client-side Supabase
+        // This requires RLS that permits admins to SELECT pending doctors from `profiles`.
+        console.warn('Admin API unavailable, falling back to Supabase client:', e?.message ?? e);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, name, email, license_number, specialty, status')
+          .eq('role', 'doctor')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true });
+
+        if (error) throw new Error(error.message);
+        const mapped = (data ?? []).map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          email: d.email,
+          licenseNumber: d.license_number ?? undefined,
+          specialty: d.specialty ?? undefined,
+          status: d.status,
+        }));
+        setDoctors(mapped as PendingDoctor[]);
+      }
     } catch (err: any) {
       setError(err.message ?? "Failed to load doctors");
     } finally {
@@ -55,7 +79,18 @@ export default function AdminDashboard() {
 
   const updateDoctor = async (id: string, action: "approve" | "reject") => {
     try {
-      await authFetch(`/api/admin/doctors/${id}/${action}`, { method: "POST" });
+      const endpoint = action === 'approve' ? `/api/admin/doctors/${id}/approve` : `/api/admin/doctors/${id}/reject`;
+      try {
+        // Preferred: call server API to perform the action securely
+        await authFetch(endpoint, { method: 'POST' });
+      } catch (e: any) {
+        // If server API is not reachable (static host), fallback to direct Supabase update.
+        // This requires a strict RLS policy allowing only admins to update `profiles.status`.
+        console.warn('Admin API unavailable, falling back to Supabase client update:', e?.message ?? e);
+        const status = action === 'approve' ? 'approved' : 'rejected';
+        const { error } = await supabase.from('profiles').update({ status }).eq('id', id);
+        if (error) throw new Error(error.message);
+      }
       await loadPending();
     } catch (err: any) {
       setError(err.message ?? "Failed to update doctor");
