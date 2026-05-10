@@ -96,6 +96,22 @@ export default function ResultsPage() {
     );
   }
 
+  // Pull richer metadata stored by the new server-side ML pipeline.
+  // metadata is JSONB → typed as unknown; we read it loosely here.
+  const meta = (scan.metadata as Record<string, any> | null) ?? {};
+  const probabilities = (meta.probabilities ?? null) as Record<string, number> | null;
+  const modelLabel = (meta.modelLabel ?? null) as string | null;
+  const isFailed = scan.inferenceMode === "failed";
+
+  const PROB_ORDER = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"];
+  const probBarColor: Record<string, string> = {
+    "No DR": "bg-emerald-500",
+    "Mild": "bg-yellow-500",
+    "Moderate": "bg-orange-500",
+    "Severe": "bg-red-500",
+    "Proliferative": "bg-purple-500",
+  };
+
   const getSeverityLabel = (severity: string) => {
     switch (severity) {
       case "severe": return "Severe";
@@ -158,8 +174,21 @@ export default function ResultsPage() {
               <div className="text-right">
                 <div className="text-3xl font-mono font-bold text-primary" data-testid="text-confidence-score">{scan.confidence}%</div>
                 <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Confidence</div>
+                {modelLabel && (
+                  <div className="mt-1 text-[10px] text-slate-500">via {modelLabel}</div>
+                )}
               </div>
             </div>
+
+            {/* Failed-inference banner */}
+            {isFailed && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <Info className="mt-0.5 h-4 w-4 text-red-600" />
+                <p className="text-sm text-red-700">
+                  The AI model could not analyze this image. The fundus may be too blurry or unsuitable. Please retake the image with better focus and lighting.
+                </p>
+              </div>
+            )}
 
             {/* Severity Scale */}
             <div className="space-y-2 mb-6">
@@ -182,6 +211,38 @@ export default function ResultsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Probability distribution — only when the backend returned full softmax */}
+            {probabilities && Object.keys(probabilities).length > 0 && (
+              <div className="mb-6 rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+                <div className="mb-3 flex items-baseline justify-between">
+                  <h3 className="text-sm font-semibold text-slate-900">Probability Distribution</h3>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400">
+                    Calibrated per-class
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {PROB_ORDER.map((cls) => {
+                    const p = probabilities[cls] ?? probabilities[`${cls} DR`] ?? 0;
+                    const pct = p * 100;
+                    return (
+                      <div key={cls} className="flex items-center gap-3">
+                        <span className="w-20 text-xs text-slate-600">{cls}</span>
+                        <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={`absolute left-0 top-0 h-full rounded-full ${probBarColor[cls] ?? "bg-slate-400"}`}
+                            style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
+                          />
+                        </div>
+                        <span className="w-12 text-right text-xs font-mono text-slate-500">
+                          {pct.toFixed(1)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <Button

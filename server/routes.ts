@@ -6,6 +6,16 @@ import { fromZodError } from "zod-validation-error";
 import { supabaseAdmin } from "./supabaseClient";
 import multer from "multer";
 import path from "path";
+import {
+  DEFAULT_MODEL,
+  diagnosisFromPrediction,
+  getAvailableModels,
+  getModelInfo,
+  heatmapBufferFromBase64,
+  mapClassToSeverity,
+  predictFundus,
+  type ModelKey,
+} from "./mlClient";
 
 type RequestUser = {
   id: string;
@@ -519,6 +529,17 @@ export async function registerRoutes(
     }
   });
 
+  // Available models — surfaces config to the client so it can render
+  // the model picker with the same labels/descriptions as the mobile app.
+  app.get("/api/models", (_req: Request, res: Response) => {
+    const models = getAvailableModels().map((m) => ({
+      key: m.key,
+      label: m.label,
+      description: m.description,
+    }));
+    res.json({ models, default: DEFAULT_MODEL });
+  });
+
   // Doctor: upload fundus image, run inference, and create scan
   app.post(
     "/api/doctor/upload",
@@ -530,47 +551,126 @@ export async function registerRoutes(
 
         const file = req.file as Express.Multer.File | undefined;
         const patientId = (req.body?.patientId as string) ?? req.user.id;
+        const requestedModel = (req.body?.model as string) ?? DEFAULT_MODEL;
+        const modelKey: ModelKey =
+          requestedModel === "partner" || requestedModel === "rp_v1"
+            ? requestedModel
+            : DEFAULT_MODEL;
+        const modelInfo = getModelInfo(modelKey);
+
         if (!file) return res.status(400).json({ error: "No file uploaded" });
+        if (!modelInfo.url) {
+          return res.status(503).json({
+            error: `${modelInfo.label} is not configured. Set DR_API_URL${modelKey === "partner" ? "_PARTNER" : ""} in server/.env.`,
+          });
+        }
 
         const ext = path.extname(file.originalname) || ".jpg";
         const key = `images/${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
 
-        // Upload to Supabase storage (bucket must exist: 'images')
+        // Upload original to Supabase storage (bucket must exist: 'images')
         const { error: uploadError } = await supabaseAdmin.storage
           .from("images")
           .upload(key, file.buffer, { contentType: file.mimetype });
-
         if (uploadError) {
           console.error("Storage upload error:", uploadError);
           return res.status(500).json({ error: "Failed to upload image" });
         }
-
         const { data: publicData } = supabaseAdmin.storage.from("images").getPublicUrl(key);
-        const imageUrl = publicData.publicUrl;
+        const originalImageUrl = publicData.publicUrl;
 
-        // Placeholder inference - replace with real model call
+        // Real inference through the selected HF Space
         const start = Date.now();
-        const severities = ["mild", "moderate", "severe"];
-        const severity = severities[Math.floor(Math.random() * severities.length)];
-        const diagnosis = severity === "severe" ? "Severe DR" : severity === "moderate" ? "Moderate DR" : "Mild DR";
-        const confidence = Math.floor(80 + Math.random() * 20);
+        let prediction;
+        let inferenceError: string | null = null;
+        try {
+          prediction = await predictFundus(
+            file.buffer,
+            file.mimetype,
+            file.originalname,
+            modelKey,
+          );
+        } catch (err: any) {
+          inferenceError = err?.message ?? "Analysis failed";
+        }
         const inferenceTime = Date.now() - start;
 
-        const insertPayload = {
-          patientId,
-          originalImageUrl: imageUrl,
-          heatmapImageUrl: imageUrl,
-          diagnosis,
-          severity,
-          confidence,
-          modelVersion: "stub-v1",
-          inferenceMode: "stub",
-          inferenceTime,
-          preprocessingMethod: "none",
-          metadata: { uploadedBy: req.user.id },
-        };
+        // If the backend returned a Grad-CAM PNG, upload it to storage as a
+        // real second image so the heatmap_image_url column points at a
+        // standalone object (not a duplicate of the original).
+        let heatmapImageUrl = originalImageUrl;
+        if (prediction?.heatmapBase64) {
+          try {
+            const heatmapBuf = heatmapBufferFromBase64(prediction.heatmapBase64);
+            const heatmapKey = `images/${Date.now()}_${Math.random().toString(36).slice(2)}_heatmap.png`;
+            const { error: heatmapErr } = await supabaseAdmin.storage
+              .from("images")
+              .upload(heatmapKey, heatmapBuf, { contentType: "image/png" });
+            if (!heatmapErr) {
+              heatmapImageUrl = supabaseAdmin.storage
+                .from("images")
+                .getPublicUrl(heatmapKey).data.publicUrl;
+            } else {
+              console.warn("Heatmap upload failed, falling back to original:", heatmapErr.message);
+            }
+          } catch (err) {
+            console.warn("Heatmap decode/upload threw, falling back to original:", err);
+          }
+        }
+
+        const insertPayload = prediction
+          ? {
+              patientId,
+              originalImageUrl,
+              heatmapImageUrl,
+              diagnosis: diagnosisFromPrediction(prediction),
+              severity: mapClassToSeverity(prediction.classId),
+              confidence: Math.round(prediction.confidence * 100),
+              modelVersion: modelInfo.modelVersion,
+              inferenceMode: "remote",
+              inferenceTime,
+              preprocessingMethod: modelInfo.preprocessing,
+              metadata: {
+                uploadedBy: req.user.id,
+                probabilities: prediction.probabilities,
+                temperatureUsed: prediction.temperatureUsed,
+                className: prediction.className,
+                calibrated: prediction.calibrated,
+                rawClassId: prediction.classId,
+                modelKey: prediction.modelKey,
+                modelLabel: modelInfo.label,
+              },
+            }
+          : {
+              patientId,
+              originalImageUrl,
+              heatmapImageUrl: originalImageUrl,
+              diagnosis: "Analysis failed",
+              severity: "unknown",
+              confidence: 0,
+              modelVersion: modelInfo.modelVersion,
+              inferenceMode: "failed",
+              inferenceTime,
+              preprocessingMethod: modelInfo.preprocessing,
+              metadata: {
+                uploadedBy: req.user.id,
+                error: inferenceError ?? "unknown error",
+                modelKey,
+                modelLabel: modelInfo.label,
+              },
+            };
 
         const scan = await storage.createScan(insertPayload as any);
+
+        // Surface the inference error AFTER the scan is persisted so the
+        // doctor sees a meaningful message but the upload isn't lost.
+        if (inferenceError) {
+          return res.status(502).json({
+            ok: false,
+            error: inferenceError,
+            scan,
+          });
+        }
 
         res.status(201).json({ ok: true, scan });
       } catch (error) {

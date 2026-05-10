@@ -19,6 +19,7 @@ import {
   User,
   Calendar,
   ChevronDown,
+  BrainCircuit,
 } from "lucide-react";
 import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -35,10 +36,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type AvailableModel = { key: string; label: string; description: string };
+
 export default function DoctorDashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>("rp_v1");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +56,20 @@ export default function DoctorDashboard() {
     queryKey: ["scans"],
     queryFn: getScans,
   });
+
+  // Available ML backends — driven by what's configured server-side. If only
+  // one is set (or fetch fails), the picker falls back to a hidden default.
+  const { data: modelsResp } = useQuery({
+    queryKey: ["ml-models"],
+    queryFn: async () => {
+      const res = await fetch("/api/models");
+      if (!res.ok) return { models: [], default: "rp_v1" };
+      return res.json() as Promise<{ models: AvailableModel[]; default: string }>;
+    },
+    staleTime: 60_000,
+  });
+  const availableModels = modelsResp?.models ?? [];
+  const showModelPicker = availableModels.length > 1;
 
   const recentScans = scans?.slice(0, 5) ?? [];
   const totalPatients = patients?.length ?? 0;
@@ -94,6 +112,7 @@ export default function DoctorDashboard() {
       const form = new FormData();
       form.append("file", file);
       form.append("patientId", selectedPatientId);
+      form.append("model", selectedModel);
 
       const res = await fetch("/api/doctor/upload", {
         method: "POST",
@@ -101,9 +120,14 @@ export default function DoctorDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      const body = await res.json().catch(() => null as any);
+
       if (!res.ok) {
-        const text = await res.text();
-        setUploadResult({ success: false, message: text || "Upload failed" });
+        // 502 means inference failed but the scan row was persisted. Surface
+        // the model error to the doctor so they know to retake the image.
+        const message = body?.error || `Upload failed (HTTP ${res.status})`;
+        setUploadResult({ success: false, message });
+        if (body?.scan) refetch();
       } else {
         setUploadResult({ success: true, message: "Analysis complete! Report created." });
         refetch();
@@ -254,6 +278,39 @@ export default function DoctorDashboard() {
                   </Select>
                 )}
               </div>
+
+              {/* Model Picker — only shown when more than one ML backend is configured */}
+              {showModelPicker && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-600">
+                    Analysis model <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-1 bg-white dark:bg-slate-900">
+                    {availableModels.map((m) => {
+                      const active = selectedModel === m.key;
+                      return (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setSelectedModel(m.key)}
+                          disabled={isUploading}
+                          className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors ${
+                            active
+                              ? "bg-primary/10 text-primary"
+                              : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          <BrainCircuit className="h-4 w-4" />
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {availableModels.find((m) => m.key === selectedModel)?.description}
+                  </p>
+                </div>
+              )}
 
               {/* File Drop Zone */}
               <div
