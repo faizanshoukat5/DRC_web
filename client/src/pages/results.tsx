@@ -1,7 +1,15 @@
 import { WebLayout } from "@/components/web-layout";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Info, Share2, Download, ChevronUp, Image as ImageIcon } from "lucide-react";
+import {
+  Info,
+  Download,
+  ChevronUp,
+  ArrowLeft,
+  Cpu,
+  Calendar,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -9,14 +17,27 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { getScan } from "@/lib/api";
-import { useRoute } from "wouter";
+import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
-import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
-// Placeholder images - these will be replaced with actual scan images from Supabase
-// import baseImage from '@assets/generated_images/high-quality_retinal_fundus_image_for_medical_analysis..png';
-// import heatmapImage from '@assets/generated_images/retinal_fundus_image_with_grad-cam_heatmap_overlay..png';
+// 5-class palette + display order. Mirrors mobile's Results screen.
+const PROB_ORDER = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"] as const;
+const PROB_COLOR: Record<(typeof PROB_ORDER)[number], string> = {
+  "No DR": "bg-emerald-500",
+  Mild: "bg-yellow-500",
+  Moderate: "bg-orange-500",
+  Severe: "bg-red-500",
+  Proliferative: "bg-purple-500",
+};
+
+const SEVERITY_BADGE: Record<string, string> = {
+  normal: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  mild: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  moderate: "bg-orange-100 text-orange-700 border-orange-200",
+  severe: "bg-red-100 text-red-700 border-red-200",
+  unknown: "bg-slate-100 text-slate-700 border-slate-200",
+};
 
 export default function ResultsPage() {
   const [, params] = useRoute("/results/:id");
@@ -25,7 +46,6 @@ export default function ResultsPage() {
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const reportRef = useRef<HTMLDivElement>(null);
 
   const { data: scan, isLoading } = useQuery({
     queryKey: ["scan", scanId],
@@ -33,63 +53,10 @@ export default function ResultsPage() {
     enabled: !!scanId,
   });
 
-  const exportPDF = async () => {
-    if (!reportRef.current || !scan) return;
-    try {
-      setIsExporting(true);
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-      });
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= 297;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= 297;
-      }
-
-      const filename = `Report_${scan.patientId}_${format(new Date(scan.timestamp), 'yyyy-MM-dd')}.pdf`;
-      pdf.save(filename);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const exportImage = async () => {
-    if (!reportRef.current || !scan) return;
-    try {
-      setIsExporting(true);
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-      });
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = `Report_${scan.patientId}_${format(new Date(scan.timestamp), 'yyyy-MM-dd')}.png`;
-      link.click();
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   if (isLoading || !scan) {
     return (
-      <WebLayout title="Loading..." showBack>
-        <div className="h-full flex items-center justify-center">
+      <WebLayout title="Loading...">
+        <div className="flex items-center justify-center min-h-[60vh]">
           <div className="animate-pulse text-slate-400">Loading scan results...</div>
         </div>
       </WebLayout>
@@ -97,218 +64,415 @@ export default function ResultsPage() {
   }
 
   // Pull richer metadata stored by the new server-side ML pipeline.
-  // metadata is JSONB → typed as unknown; we read it loosely here.
+  // metadata is JSONB -> typed as unknown; read loosely.
   const meta = (scan.metadata as Record<string, any> | null) ?? {};
   const probabilities = (meta.probabilities ?? null) as Record<string, number> | null;
   const modelLabel = (meta.modelLabel ?? null) as string | null;
   const isFailed = scan.inferenceMode === "failed";
+  const hasDistinctHeatmap =
+    !!scan.heatmapImageUrl && scan.heatmapImageUrl !== scan.originalImageUrl;
+  const severityKey = (scan.severity || "unknown").toLowerCase();
+  const badgeClass = SEVERITY_BADGE[severityKey] ?? SEVERITY_BADGE.unknown;
 
-  const PROB_ORDER = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"];
-  const probBarColor: Record<string, string> = {
-    "No DR": "bg-emerald-500",
-    "Mild": "bg-yellow-500",
-    "Moderate": "bg-orange-500",
-    "Severe": "bg-red-500",
-    "Proliferative": "bg-purple-500",
-  };
+  const exportPDF = async () => {
+    if (!scan) return;
+    try {
+      setIsExporting(true);
+      // Direct jspdf render — no DOM snapshot, no html2canvas, no oklch
+      // parsing. Fully vector + embedded raster fundus images.
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const W = pdf.internal.pageSize.getWidth();      // 595
+      const H = pdf.internal.pageSize.getHeight();     // 842
+      const M = 36;                                    // page margin
+      let y = M;
 
-  const getSeverityLabel = (severity: string) => {
-    switch (severity) {
-      case "severe": return "Severe";
-      case "moderate": return "Moderate";
-      case "mild": return "Mild";
-      default: return severity;
+      // ── Header ──────────────────────────────────────────────────────
+      pdf.setFillColor(14, 165, 233);                   // primary blue
+      pdf.rect(0, 0, W, 6, "F");
+      y += 4;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(20);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text("RetinaPilot", M, y + 14);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text("AI-guided diabetic retinopathy screening", M, y + 28);
+
+      pdf.setFontSize(8);
+      pdf.text(
+        `Report ID: ${scan.id}    ${format(new Date(scan.timestamp), "PPp")}`,
+        W - M,
+        y + 14,
+        { align: "right" },
+      );
+      if (modelLabel) {
+        pdf.text(`Analyzed by ${modelLabel}`, W - M, y + 28, { align: "right" });
+      }
+      y += 44;
+
+      pdf.setDrawColor(226, 232, 240);
+      pdf.setLineWidth(0.5);
+      pdf.line(M, y, W - M, y);
+      y += 18;
+
+      // ── Diagnosis block ─────────────────────────────────────────────
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text("Screening result", M, y);
+      y += 6;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+
+      const kvRow = (label: string, value: string) => {
+        y += 14;
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(label, M, y);
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(value, M + 90, y);
+        pdf.setFont("helvetica", "normal");
+      };
+      kvRow("Diagnosis", scan.diagnosis || "Pending Analysis");
+      kvRow("Severity", String(scan.severity || "unknown"));
+      kvRow("Confidence", `${scan.confidence}%`);
+      kvRow("Model version", scan.modelVersion);
+      kvRow("Preprocessing", scan.preprocessingMethod);
+      kvRow("Inference time", `${scan.inferenceTime} ms`);
+      y += 18;
+
+      // ── Image(s) — embed via async loader ───────────────────────────
+      const loadDataUrl = (url: string) =>
+        new Promise<string | null>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            try {
+              const c = document.createElement("canvas");
+              c.width = img.naturalWidth;
+              c.height = img.naturalHeight;
+              const ctx = c.getContext("2d");
+              if (!ctx) return resolve(null);
+              ctx.drawImage(img, 0, 0);
+              resolve(c.toDataURL("image/jpeg", 0.85));
+            } catch {
+              resolve(null);
+            }
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+
+      const original = await loadDataUrl(scan.originalImageUrl);
+      const heatmap = hasDistinctHeatmap ? await loadDataUrl(scan.heatmapImageUrl) : null;
+
+      const imgW = (W - M * 2 - 12) / 2; // two columns
+      const imgH = imgW; // square
+      if (original) {
+        if (y + imgH > H - M) {
+          pdf.addPage();
+          y = M;
+        }
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text("Original fundus", M, y);
+        if (heatmap) pdf.text("AI heatmap", M + imgW + 12, y);
+        y += 6;
+        pdf.addImage(original, "JPEG", M, y, imgW, imgH);
+        if (heatmap) pdf.addImage(heatmap, "JPEG", M + imgW + 12, y, imgW, imgH);
+        y += imgH + 18;
+      }
+
+      // ── Probability distribution ────────────────────────────────────
+      if (probabilities && Object.keys(probabilities).length > 0) {
+        if (y + 130 > H - M) {
+          pdf.addPage();
+          y = M;
+        }
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(12);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text("Probability distribution", M, y);
+        y += 4;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        const barX = M + 110;
+        const barW = W - M - barX - 50;
+        for (const cls of PROB_ORDER) {
+          y += 14;
+          const p = probabilities[cls] ?? probabilities[`${cls} DR`] ?? 0;
+          const pct = p * 100;
+
+          pdf.setTextColor(71, 85, 105);
+          pdf.text(cls, M, y);
+
+          pdf.setFillColor(241, 245, 249);
+          pdf.roundedRect(barX, y - 7, barW, 8, 4, 4, "F");
+          if (pct > 0) {
+            const fillW = Math.max(3, (Math.min(100, pct) / 100) * barW);
+            // class colors in RGB to avoid oklch
+            const colors: Record<string, [number, number, number]> = {
+              "No DR": [16, 185, 129],
+              Mild: [234, 179, 8],
+              Moderate: [249, 115, 22],
+              Severe: [239, 68, 68],
+              Proliferative: [168, 85, 247],
+            };
+            const [r, g, b] = colors[cls] ?? [14, 165, 233];
+            pdf.setFillColor(r, g, b);
+            pdf.roundedRect(barX, y - 7, fillW, 8, 4, 4, "F");
+          }
+
+          pdf.setTextColor(71, 85, 105);
+          pdf.text(`${pct.toFixed(1)}%`, W - M, y, { align: "right" });
+        }
+        y += 18;
+      }
+
+      // ── Footer disclaimer ───────────────────────────────────────────
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      const disclaimer =
+        "This report was generated by RetinaPilot's AI screening system. The analysis is for screening purposes only and does not constitute a medical diagnosis. Please consult a qualified ophthalmologist.";
+      const wrapped = pdf.splitTextToSize(disclaimer, W - M * 2);
+      pdf.text(wrapped, M, H - M);
+
+      const safeName = (s: string) =>
+        s.normalize("NFKD").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      const filename = `RetinaPilot_${safeName(scan.diagnosis || "report")}_${format(new Date(scan.timestamp), "yyyy-MM-dd")}_${scan.id}.pdf`;
+      pdf.save(filename);
+    } finally {
+      setIsExporting(false);
     }
   };
 
   return (
-    <WebLayout title="Analysis Results" showBack>
-      <div className="flex flex-col min-h-full pb-24">
-        
-        {/* Image Section */}
-        <div className="relative aspect-square w-full bg-black overflow-hidden group">
-           <img 
-             src={scan?.originalImageUrl} 
-             alt="Fundus Original" 
-             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
-             data-testid="img-fundus-original"
-           />
-           <motion.img 
-             src={scan?.heatmapImageUrl} 
-             alt="Fundus Heatmap" 
-             className="absolute inset-0 w-full h-full object-cover"
-             initial={{ opacity: 0 }}
-             animate={{ opacity: showHeatmap ? 0.8 : 0 }}
-             transition={{ duration: 0.5 }}
-             data-testid="img-fundus-heatmap"
-           />
+    <WebLayout title="Analysis Results">
+      <div className="mx-auto max-w-6xl">
+        {/* Back link */}
+        <Link href="/results">
+          <span className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 cursor-pointer">
+            <ArrowLeft className="h-4 w-4" /> Back to history
+          </span>
+        </Link>
 
-           {/* Floating Toggle */}
-           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 bg-black/60 backdrop-blur-md rounded-full border border-white/10">
-             <Label htmlFor="heatmap-mode" className="text-white text-xs font-medium">Grad-CAM</Label>
-             <Switch 
-               id="heatmap-mode" 
-               checked={showHeatmap} 
-               onCheckedChange={setShowHeatmap}
-               className="data-[state=checked]:bg-primary"
-               data-testid="switch-heatmap"
-             />
-           </div>
-        </div>
-
-        {/* Diagnosis Card */}
-        <div className="flex-1 -mt-6 relative z-10 px-4 space-y-4">
-          <Card ref={reportRef} className="p-6 shadow-xl border-slate-100 bg-white">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                 <Badge variant="outline" className="mb-2 text-xs border-slate-200 text-slate-500" data-testid="badge-scan-info">
-                   ID: {scan.patientId} • {format(new Date(scan.timestamp), "MMM d, HH:mm")}
-                 </Badge>
-                 <h2 className="text-2xl font-bold text-slate-900" data-testid="text-diagnosis">{scan.diagnosis}</h2>
-                 <p className="text-slate-500 text-sm">
-                   {scan.severity === 'severe' ? 'Proliferative Diabetic Retinopathy' : 
-                    scan.severity === 'moderate' ? 'Non-proliferative DR' : 
-                    'Early stage detection'}
-                 </p>
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-mono font-bold text-primary" data-testid="text-confidence-score">{scan.confidence}%</div>
-                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Confidence</div>
-                {modelLabel && (
-                  <div className="mt-1 text-[10px] text-slate-500">via {modelLabel}</div>
-                )}
-              </div>
+        {/* Failed-inference banner */}
+        {isFailed && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+            <div>
+              <p className="text-sm font-medium text-red-900">Analysis could not complete</p>
+              <p className="mt-1 text-sm text-red-700">
+                The AI model could not analyze this image. The fundus may be too blurry,
+                poorly lit, or not a recognizable retinal photograph. Please retake the
+                image and try again.
+              </p>
             </div>
+          </div>
+        )}
 
-            {/* Failed-inference banner */}
-            {isFailed && (
-              <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                <Info className="mt-0.5 h-4 w-4 text-red-600" />
-                <p className="text-sm text-red-700">
-                  The AI model could not analyze this image. The fundus may be too blurry or unsuitable. Please retake the image with better focus and lighting.
-                </p>
-              </div>
-            )}
-
-            {/* Severity Scale */}
-            <div className="space-y-2 mb-6">
-              <div className="flex justify-between text-xs font-medium text-slate-400">
-                <span>Mild</span>
-                <span>Moderate</span>
-                <span className={scan.severity === 'severe' ? 'text-destructive font-bold' : ''}>Severe</span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden flex">
-                <div className="w-1/3 bg-emerald-400/30" />
-                <div className="w-1/3 bg-amber-400/30" />
-                <div className="w-1/3 bg-destructive relative">
-                  {scan.severity === 'severe' && (
-                    <motion.div 
-                      className="absolute right-2 top-0 bottom-0 w-1 bg-white shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+        {/* Two-column on desktop, stacked on mobile */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          {/* Left: Image with heatmap toggle */}
+          <div className="space-y-3">
+            <div className="relative aspect-square w-full max-h-[600px] overflow-hidden rounded-2xl bg-slate-900 shadow-lg">
+              {scan.originalImageUrl ? (
+                <>
+                  <img
+                    src={scan.originalImageUrl}
+                    alt="Original fundus"
+                    className="absolute inset-0 h-full w-full object-cover"
+                    data-testid="img-fundus-original"
+                  />
+                  {hasDistinctHeatmap && (
+                    <motion.img
+                      src={scan.heatmapImageUrl}
+                      alt="AI heatmap"
+                      className="absolute inset-0 h-full w-full object-cover"
                       initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                      animate={{ opacity: showHeatmap ? 1 : 0 }}
+                      transition={{ duration: 0.4 }}
+                      data-testid="img-fundus-heatmap"
                     />
                   )}
+                </>
+              ) : (
+                <div className="flex h-full items-center justify-center text-slate-400 text-sm">
+                  No image available
                 </div>
-              </div>
+              )}
+
+              {hasDistinctHeatmap && (
+                <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/10 bg-black/70 px-4 py-2 backdrop-blur-md">
+                  <Label htmlFor="heatmap-mode" className="text-xs font-medium text-white">
+                    Show heatmap
+                  </Label>
+                  <Switch
+                    id="heatmap-mode"
+                    checked={showHeatmap}
+                    onCheckedChange={setShowHeatmap}
+                    data-testid="switch-heatmap"
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Probability distribution — only when the backend returned full softmax */}
+            {hasDistinctHeatmap && showHeatmap && (
+              <p className="text-xs text-slate-500 px-1">
+                Warm (red/yellow) areas show regions the AI focused on for this diagnosis.
+              </p>
+            )}
+          </div>
+
+          {/* Right: Diagnosis + metadata */}
+          <div className="space-y-4">
+            {/* Diagnosis Card */}
+            <Card className="p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Badge variant="outline" className="mb-2 gap-1.5">
+                    <Calendar className="h-3 w-3" />
+                    {format(new Date(scan.timestamp), "MMM d, yyyy • HH:mm")}
+                  </Badge>
+                  <h2
+                    className="text-2xl font-bold text-slate-900 dark:text-white truncate"
+                    data-testid="text-diagnosis"
+                  >
+                    {scan.diagnosis || "Pending Analysis"}
+                  </h2>
+                </div>
+                <Badge className={`shrink-0 capitalize ${badgeClass}`} variant="outline">
+                  {scan.severity || "unknown"}
+                </Badge>
+              </div>
+
+              {/* Confidence bar */}
+              <div className="mb-4">
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    AI confidence
+                  </span>
+                  <span
+                    className="font-mono text-2xl font-bold text-primary"
+                    data-testid="text-confidence-score"
+                  >
+                    {scan.confidence}%
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${Math.max(0, Math.min(100, scan.confidence))}%` }}
+                  />
+                </div>
+              </div>
+
+              {modelLabel && (
+                <div className="mb-4 flex items-center gap-1.5 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600 border border-slate-100">
+                  <Cpu className="h-3.5 w-3.5 text-slate-500" />
+                  Analyzed by <span className="font-medium text-slate-900">{modelLabel}</span>
+                </div>
+              )}
+
+              <Button
+                onClick={exportPDF}
+                disabled={isExporting}
+                className="w-full gap-2"
+                data-testid="button-save-report"
+              >
+                <Download className="h-4 w-4" />
+                {isExporting ? "Generating..." : "Download PDF Report"}
+              </Button>
+            </Card>
+
+            {/* Probability Distribution */}
             {probabilities && Object.keys(probabilities).length > 0 && (
-              <div className="mb-6 rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <Card className="p-5">
                 <div className="mb-3 flex items-baseline justify-between">
-                  <h3 className="text-sm font-semibold text-slate-900">Probability Distribution</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Probability Distribution
+                  </h3>
                   <span className="text-[10px] uppercase tracking-wider text-slate-400">
                     Calibrated per-class
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {PROB_ORDER.map((cls) => {
                     const p = probabilities[cls] ?? probabilities[`${cls} DR`] ?? 0;
                     const pct = p * 100;
                     return (
                       <div key={cls} className="flex items-center gap-3">
-                        <span className="w-20 text-xs text-slate-600">{cls}</span>
+                        <span className="w-24 text-xs text-slate-600">{cls}</span>
                         <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                           <div
-                            className={`absolute left-0 top-0 h-full rounded-full ${probBarColor[cls] ?? "bg-slate-400"}`}
+                            className={`absolute left-0 top-0 h-full rounded-full ${PROB_COLOR[cls]}`}
                             style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
                           />
                         </div>
-                        <span className="w-12 text-right text-xs font-mono text-slate-500">
+                        <span className="w-12 text-right font-mono text-xs text-slate-500">
                           {pct.toFixed(1)}%
                         </span>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              </Card>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Technical Details (collapsed) */}
+            <Card className="p-3">
               <Button
-                variant="outline"
-                className="w-full gap-2 text-xs"
-                onClick={exportPDF}
-                disabled={isExporting}
-                data-testid="button-save-report"
+                variant="ghost"
+                onClick={() => setShowDetails(!showDetails)}
+                className="w-full justify-between text-slate-500 hover:text-slate-900"
+                data-testid="button-technical-details"
               >
-                <Download className="w-4 h-4" /> {isExporting ? 'Exporting...' : 'PDF Report'}
+                <span className="flex items-center gap-2 text-xs font-medium">
+                  <Info className="h-4 w-4" /> Technical analysis
+                </span>
+                <ChevronUp
+                  className={`h-4 w-4 transition-transform ${showDetails ? "rotate-180" : ""}`}
+                />
               </Button>
-              <Button
-                variant="outline"
-                className="w-full gap-2 text-xs"
-                onClick={exportImage}
-                disabled={isExporting}
-              >
-                <ImageIcon className="w-4 h-4" /> Export Image
-              </Button>
-            </div>
-          </Card>
-
-          {/* Technical Details */}
-          <div className="px-2">
-             <Button 
-               variant="ghost" 
-               className="w-full flex justify-between text-slate-400 hover:text-slate-600"
-               onClick={() => setShowDetails(!showDetails)}
-               data-testid="button-technical-details"
-             >
-               <span className="flex items-center gap-2 text-xs font-medium"><Info className="w-4 h-4"/> Technical Analysis</span>
-               <ChevronUp className={`w-4 h-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
-             </Button>
-             
-             <AnimatePresence>
-               {showDetails && (
-                 <motion.div 
-                   initial={{ height: 0, opacity: 0 }}
-                   animate={{ height: 'auto', opacity: 1 }}
-                   exit={{ height: 0, opacity: 0 }}
-                   className="overflow-hidden"
-                 >
-                   <div className="pt-2 pb-4 text-xs space-y-2 text-slate-500 font-mono bg-slate-50 p-4 rounded-lg mt-2 border border-slate-100" data-testid="section-technical-details">
-                     <div className="flex justify-between">
-                       <span>Model:</span>
-                       <span className="text-slate-900">{scan.modelVersion}</span>
-                     </div>
-                     <div className="flex justify-between">
-                       <span>Inference:</span>
-                       <span className="text-slate-900">{scan.inferenceMode}</span>
-                     </div>
-                     <div className="flex justify-between">
-                       <span>Pre-processing:</span>
-                       <span className="text-slate-900">{scan.preprocessingMethod}</span>
-                     </div>
-                     <div className="flex justify-between">
-                       <span>Inference Time:</span>
-                       <span className="text-slate-900">{scan.inferenceTime}ms</span>
-                     </div>
-                   </div>
-                 </motion.div>
-               )}
-             </AnimatePresence>
+              <AnimatePresence>
+                {showDetails && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div
+                      className="mt-2 grid gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 font-mono text-xs"
+                      data-testid="section-technical-details"
+                    >
+                      <DetailRow label="Model" value={scan.modelVersion} />
+                      <DetailRow label="Inference" value={scan.inferenceMode} />
+                      <DetailRow label="Pre-processing" value={scan.preprocessingMethod} />
+                      <DetailRow label="Inference time" value={`${scan.inferenceTime} ms`} />
+                      <DetailRow label="Patient ID" value={scan.patientId} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Card>
           </div>
         </div>
       </div>
     </WebLayout>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string | number | null }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-slate-500">{label}:</span>
+      <span className="text-slate-900">{value ?? "-"}</span>
+    </div>
   );
 }

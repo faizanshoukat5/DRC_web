@@ -75,9 +75,9 @@ export function WebLayout({ children, title }: WebLayoutProps) {
               </div>
               <div className="flex flex-col">
                 <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  RetinaAI
+                  RetinaPilot
                 </h1>
-                <p className="text-xs text-muted-foreground">Diabetic Retinopathy Detection</p>
+                <p className="text-xs text-muted-foreground">AI-guided retinal screening</p>
               </div>
             </div>
           </Link>
@@ -168,7 +168,7 @@ export function WebLayout({ children, title }: WebLayoutProps) {
         <div className="container mx-auto px-6">
           <div className="flex items-center gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2026 RetinaAI. All rights reserved.
+              © 2026 RetinaPilot. All rights reserved.
             </p>
 
             <div className="ml-auto">
