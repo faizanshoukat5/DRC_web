@@ -469,17 +469,17 @@ export default function ResultsPage() {
         <div className="mb-6">
           {scan.originalImageUrl ? (
             <div
-              className={`grid gap-4 ${
+              className={`grid gap-8 ${
                 hasDistinctHeatmap ? "md:grid-cols-2" : "grid-cols-1"
               }`}
             >
               {/* Original fundus */}
               <figure className="space-y-2">
-                <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900 shadow-md">
+                <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-black shadow-md">
                   <img
                     src={scan.originalImageUrl}
                     alt="Original fundus"
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className="absolute inset-0 h-full w-full object-contain"
                     data-testid="img-fundus-original"
                   />
                   <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">
@@ -491,11 +491,11 @@ export default function ResultsPage() {
               {/* AI heatmap (only when distinct from original) */}
               {hasDistinctHeatmap && (
                 <figure className="space-y-2">
-                  <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900 shadow-md">
+                  <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-black shadow-md">
                     <img
                       src={activeHeatmapUrl}
                       alt="AI Grad-CAM heatmap"
-                      className={`absolute inset-0 h-full w-full object-cover transition-opacity ${colormapLoading ? "opacity-40" : "opacity-100"}`}
+                      className={`absolute inset-0 h-full w-full object-contain transition-opacity ${colormapLoading ? "opacity-40" : "opacity-100"}`}
                       data-testid="img-fundus-heatmap"
                     />
                     {colormapLoading && (
