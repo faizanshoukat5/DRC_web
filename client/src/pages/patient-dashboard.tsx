@@ -273,12 +273,30 @@ export default function PatientDashboard() {
                 >
                   <Card className="p-5 hover:shadow-lg transition-all border-slate-200/60 hover:border-primary/30">
                     <div className="flex items-center gap-4">
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
-                        scan.severity === "severe" ? "bg-red-100" :
-                        scan.severity === "moderate" ? "bg-orange-100" :
-                        scan.severity === "mild" ? "bg-yellow-100" : "bg-emerald-100"
-                      }`}>
-                        {getSeverityIcon(scan.severity)}
+                      {/* Real fundus thumbnail when available, severity-tinted icon as fallback */}
+                      <div
+                        className={`w-14 h-14 shrink-0 rounded-xl overflow-hidden flex items-center justify-center ${
+                          scan.originalImageUrl
+                            ? "bg-slate-100"
+                            : scan.severity === "severe"
+                              ? "bg-red-100"
+                              : scan.severity === "moderate"
+                                ? "bg-orange-100"
+                                : scan.severity === "mild"
+                                  ? "bg-yellow-100"
+                                  : "bg-emerald-100"
+                        }`}
+                      >
+                        {scan.originalImageUrl ? (
+                          <img
+                            src={scan.originalImageUrl}
+                            alt={scan.diagnosis ?? `Scan #${scan.id}`}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          getSeverityIcon(scan.severity)
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

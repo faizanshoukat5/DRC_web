@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { getScans, getMyPatients, type PatientInfo } from "@/lib/api";
 import { format } from "date-fns";
@@ -39,6 +39,7 @@ import {
 type AvailableModel = { key: string; label: string; description: string };
 
 export default function DoctorDashboard() {
+  const [, setLocation] = useLocation();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState("");
@@ -123,18 +124,33 @@ export default function DoctorDashboard() {
       const body = await res.json().catch(() => null as any);
 
       if (!res.ok) {
-        // 502 means inference failed but the scan row was persisted. Surface
-        // the model error to the doctor so they know to retake the image.
+        // 502 means inference failed but the scan row was persisted with
+        // inference_mode='failed'. Navigate to the Results page anyway —
+        // it shows a red banner with retake-image guidance, mirroring the
+        // mobile flow. This is better UX than a tiny inline error message
+        // since the doctor can see exactly what was saved and retake from
+        // the same screen.
         const message = body?.error || `Upload failed (HTTP ${res.status})`;
-        setUploadResult({ success: false, message });
-        if (body?.scan) refetch();
+        if (body?.scan?.id) {
+          setUploadResult({ success: false, message });
+          refetch();
+          setLocation(`/results/${body.scan.id}`);
+        } else {
+          setUploadResult({ success: false, message });
+        }
       } else {
-        setUploadResult({ success: true, message: "Analysis complete! Report created." });
+        // Success — navigate straight to the Results page (parity with
+        // mobile, where the doctor sees the diagnosis + heatmap + probs
+        // immediately). The brief toast is replaced by the destination
+        // page being self-explanatory.
+        clearFile();
+        setSelectedPatientId("");
         refetch();
-        setTimeout(() => {
-          clearFile();
-          setSelectedPatientId("");
-        }, 2000);
+        if (body?.scan?.id) {
+          setLocation(`/results/${body.scan.id}`);
+        } else {
+          setUploadResult({ success: true, message: "Analysis complete! Report created." });
+        }
       }
     } catch (err: any) {
       setUploadResult({ success: false, message: err.message || "Network error" });

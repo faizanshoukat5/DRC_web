@@ -125,41 +125,51 @@ export default function HistoryPage() {
                 <Link href={`/results/${scan.id}`}>
                   <Card className="p-4 hover:shadow-md transition-all cursor-pointer border-slate-200/70 hover:border-primary/30">
                     <div className="flex items-center gap-4">
-                      {/* Scan Icon */}
-                      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
-                        <Eye className="h-6 w-6 text-slate-500" />
+                      {/* Scan thumbnail (real fundus when available, fallback icon) */}
+                      <div className="w-14 h-14 shrink-0 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
+                        {scan.originalImageUrl ? (
+                          <img
+                            src={scan.originalImageUrl}
+                            alt={`Scan #${scan.id}`}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <Eye className="h-6 w-6 text-slate-500" />
+                        )}
                       </div>
-                      
+
                       {/* Scan Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-slate-900">
-                            Scan #{scan.id}
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-semibold text-slate-900 truncate">
+                            {scan.diagnosis || `Scan #${scan.id}`}
                           </span>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${getSeverityColor(scan.severity || "none")}`}
+                          <Badge
+                            variant="outline"
+                            className={`text-xs shrink-0 ${getSeverityColor(scan.severity || "none")}`}
                           >
                             {getSeverityIcon(scan.severity || "none")}
-                            <span className="ml-1">{getSeverityLabel(scan.severity || "none")}</span>
+                            <span className="ml-1 capitalize">{scan.severity || "none"}</span>
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
                             {format(new Date(scan.timestamp), "MMM d, yyyy")}
                           </span>
-                          {scan.confidence && (
+                          {typeof scan.confidence === "number" && scan.confidence > 0 && (
                             <span className="flex items-center gap-1">
                               <Activity className="h-3 w-3" />
-                              {Math.round(scan.confidence * 100)}% confidence
+                              {Math.round(scan.confidence)}% confidence
                             </span>
                           )}
+                          <span className="text-slate-400">#{scan.id}</span>
                         </div>
                       </div>
-                      
+
                       {/* Arrow */}
-                      <ChevronRight className="h-5 w-5 text-slate-400" />
+                      <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
                     </div>
                   </Card>
                 </Link>
