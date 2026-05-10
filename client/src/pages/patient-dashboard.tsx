@@ -83,7 +83,7 @@ export default function PatientDashboard() {
 
   return (
     <WebLayout title="Patient Dashboard">
-      <div className="space-y-8 max-w-7xl">
+      <div className="space-y-6 max-w-5xl mx-auto">
         {/* Header with greeting */}
         <div className="space-y-2">
           <p className="text-muted-foreground">

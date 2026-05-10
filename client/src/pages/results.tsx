@@ -128,21 +128,29 @@ export default function ResultsPage() {
       pdf.setFontSize(10);
       pdf.setFont("helvetica", "normal");
 
-      const kvRow = (label: string, value: string) => {
+      const kvRow = (label: string, value: unknown) => {
+        // jspdf.text throws on undefined/null. Coerce defensively.
+        const text =
+          value === null || value === undefined || value === ""
+            ? "-"
+            : String(value);
         y += 14;
         pdf.setTextColor(100, 116, 139);
         pdf.text(label, M, y);
         pdf.setTextColor(15, 23, 42);
         pdf.setFont("helvetica", "bold");
-        pdf.text(value, M + 90, y);
+        pdf.text(text, M + 90, y);
         pdf.setFont("helvetica", "normal");
       };
       kvRow("Diagnosis", scan.diagnosis || "Pending Analysis");
-      kvRow("Severity", String(scan.severity || "unknown"));
-      kvRow("Confidence", `${scan.confidence}%`);
+      kvRow("Severity", scan.severity || "unknown");
+      kvRow("Confidence", typeof scan.confidence === "number" ? `${scan.confidence}%` : null);
       kvRow("Model version", scan.modelVersion);
       kvRow("Preprocessing", scan.preprocessingMethod);
-      kvRow("Inference time", `${scan.inferenceTime} ms`);
+      kvRow(
+        "Inference time",
+        typeof scan.inferenceTime === "number" ? `${scan.inferenceTime} ms` : null,
+      );
       y += 18;
 
       // ── Image(s) — embed via async loader ───────────────────────────

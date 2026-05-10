@@ -6,17 +6,41 @@ const API_BASE = "/api";
 async function getAuthHeaders(): Promise<HeadersInit> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  
+
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
+// Supabase returns rows with raw snake_case column names, but the Scan TS
+// type uses camelCase (per drizzle's pgTable mapping). The server has the
+// same converter in server/storage.ts; this is the client-side equivalent.
+// Without it, scan.originalImageUrl, modelVersion, heatmapImageUrl etc.
+// silently come back as undefined and the UI shows blank images, '-'
+// metadata, "undefined ms" inference time, and crashes the PDF export.
+function fromDbScan(record: any): Scan {
+  return {
+    id: record.id,
+    patientId: record.patient_id,
+    timestamp: new Date(record.timestamp),
+    originalImageUrl: record.original_image_url,
+    heatmapImageUrl: record.heatmap_image_url,
+    diagnosis: record.diagnosis,
+    severity: record.severity,
+    confidence: record.confidence,
+    modelVersion: record.model_version,
+    inferenceMode: record.inference_mode,
+    inferenceTime: record.inference_time,
+    preprocessingMethod: record.preprocessing_method,
+    metadata: record.metadata ?? undefined,
+  } as Scan;
+}
+
 export async function getScans(): Promise<Scan[]> {
   const { data, error } = await supabase.from("scans").select("*").order("timestamp", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as Scan[];
+  return (data ?? []).map(fromDbScan);
 }
 
 export async function getRecentScans(limit: number = 10): Promise<Scan[]> {
@@ -26,19 +50,33 @@ export async function getRecentScans(limit: number = 10): Promise<Scan[]> {
     .order("timestamp", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return (data ?? []) as Scan[];
+  return (data ?? []).map(fromDbScan);
 }
 
 export async function getScan(id: number): Promise<Scan> {
   const { data, error } = await supabase.from("scans").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);
-  return data as Scan;
+  return fromDbScan(data);
 }
 
 export async function createScan(scan: InsertScan): Promise<Scan> {
-  const { data, error } = await supabase.from("scans").insert([scan]).single();
+  // Map camelCase -> snake_case on the way in too
+  const dbInsert = {
+    patient_id: scan.patientId,
+    original_image_url: scan.originalImageUrl,
+    heatmap_image_url: scan.heatmapImageUrl,
+    diagnosis: scan.diagnosis,
+    severity: scan.severity,
+    confidence: scan.confidence,
+    model_version: scan.modelVersion,
+    inference_mode: scan.inferenceMode,
+    inference_time: scan.inferenceTime,
+    preprocessing_method: scan.preprocessingMethod,
+    metadata: scan.metadata ?? null,
+  };
+  const { data, error } = await supabase.from("scans").insert([dbInsert]).select().single();
   if (error) throw new Error(error.message);
-  return data as Scan;
+  return fromDbScan(data);
 }
 
 export async function getPatientScans(patientId: string): Promise<Scan[]> {
@@ -48,7 +86,7 @@ export async function getPatientScans(patientId: string): Promise<Scan[]> {
     .eq("patient_id", patientId)
     .order("timestamp", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as Scan[];
+  return (data ?? []).map(fromDbScan);
 }
 
 // Doctor-Patient Relationships

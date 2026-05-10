@@ -175,7 +175,7 @@ export default function DoctorDashboard() {
 
   return (
     <WebLayout title="Doctor Dashboard">
-      <div className="space-y-8 max-w-7xl">
+      <div className="space-y-6 max-w-4xl mx-auto">
         {/* Header */}
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome, Doctor</h1>
