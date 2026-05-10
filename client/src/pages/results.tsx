@@ -9,6 +9,7 @@ import {
   Cpu,
   Calendar,
   AlertCircle,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { getScan } from "@/lib/api";
+import { getScan, getProfileName } from "@/lib/api";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
@@ -51,6 +52,16 @@ export default function ResultsPage() {
     queryKey: ["scan", scanId],
     queryFn: () => getScan(scanId!),
     enabled: !!scanId,
+  });
+
+  // Look up the patient's display name. Quietly resolves to null when
+  // RLS denies (e.g. a different patient viewing this scan) — the UI
+  // falls back to "Patient" rather than the raw UUID.
+  const { data: patientName } = useQuery({
+    queryKey: ["profile-name", scan?.patientId],
+    queryFn: () => getProfileName(scan!.patientId),
+    enabled: !!scan?.patientId,
+    staleTime: 5 * 60_000,
   });
 
   if (isLoading || !scan) {
@@ -142,6 +153,7 @@ export default function ResultsPage() {
         pdf.text(text, M + 90, y);
         pdf.setFont("helvetica", "normal");
       };
+      if (patientName) kvRow("Patient", patientName);
       kvRow("Diagnosis", scan.diagnosis || "Pending Analysis");
       kvRow("Severity", scan.severity || "unknown");
       kvRow("Confidence", typeof scan.confidence === "number" ? `${scan.confidence}%` : null);
@@ -252,7 +264,14 @@ export default function ResultsPage() {
 
       const safeName = (s: string) =>
         s.normalize("NFKD").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-      const filename = `RetinaPilot_${safeName(scan.diagnosis || "report")}_${format(new Date(scan.timestamp), "yyyy-MM-dd")}_${scan.id}.pdf`;
+      const parts = [
+        "RetinaPilot",
+        patientName ? safeName(patientName) : null,
+        safeName(scan.diagnosis || "report"),
+        format(new Date(scan.timestamp), "yyyy-MM-dd"),
+        String(scan.id),
+      ].filter(Boolean);
+      const filename = `${parts.join("_")}.pdf`;
       pdf.save(filename);
     } finally {
       setIsExporting(false);
@@ -343,10 +362,18 @@ export default function ResultsPage() {
             <Card className="p-6">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Badge variant="outline" className="mb-2 gap-1.5">
-                    <Calendar className="h-3 w-3" />
-                    {format(new Date(scan.timestamp), "MMM d, yyyy • HH:mm")}
-                  </Badge>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="gap-1.5">
+                      <Calendar className="h-3 w-3" />
+                      {format(new Date(scan.timestamp), "MMM d, yyyy • HH:mm")}
+                    </Badge>
+                    {patientName && (
+                      <Badge variant="secondary" className="gap-1.5">
+                        <User className="h-3 w-3" />
+                        {patientName}
+                      </Badge>
+                    )}
+                  </div>
                   <h2
                     className="text-2xl font-bold text-slate-900 dark:text-white truncate"
                     data-testid="text-diagnosis"
@@ -463,7 +490,7 @@ export default function ResultsPage() {
                       <DetailRow label="Inference" value={scan.inferenceMode} />
                       <DetailRow label="Pre-processing" value={scan.preprocessingMethod} />
                       <DetailRow label="Inference time" value={`${scan.inferenceTime} ms`} />
-                      <DetailRow label="Patient ID" value={scan.patientId} />
+                      <DetailRow label="Patient" value={patientName ?? "Patient"} />
                     </div>
                   </motion.div>
                 )}

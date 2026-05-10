@@ -460,16 +460,16 @@ export default function DoctorDashboard() {
                       <FileText className="h-5 w-5 text-slate-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm text-slate-900 truncate">
-                          {scan.patientId}
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="font-semibold text-sm text-slate-900 truncate">
+                          {getPatientName(scan.patientId)}
                         </p>
-                        <Badge className={`text-[10px] px-1.5 py-0 ${getSeverityColor(scan.severity)}`}>
+                        <Badge className={`text-[10px] px-1.5 py-0 capitalize ${getSeverityColor(scan.severity)}`}>
                           {scan.severity}
                         </Badge>
                       </div>
-                      <p className="text-xs text-slate-500">
-                        {format(new Date(scan.timestamp), "MMM dd, yyyy • h:mm a")}
+                      <p className="text-xs text-slate-500 truncate">
+                        {scan.diagnosis} · {format(new Date(scan.timestamp), "MMM dd, yyyy • h:mm a")}
                       </p>
                     </div>
                     <Link href={`/results/${scan.id}`}>

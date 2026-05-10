@@ -89,6 +89,19 @@ export async function getPatientScans(patientId: string): Promise<Scan[]> {
   return (data ?? []).map(fromDbScan);
 }
 
+/** Look up a profile's display name by its auth.uid. Returns null on
+ *  miss / RLS denial — callers should fall back to a placeholder. */
+export async function getProfileName(userId: string): Promise<string | null> {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("name")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data.name as string) || null;
+}
+
 // Doctor-Patient Relationships
 
 export interface ApprovedDoctor {
