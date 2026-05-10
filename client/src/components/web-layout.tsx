@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, History, Settings, ScanEye, LogOut, HelpCircle, Users, Activity, FileText } from "lucide-react";
+import { Home, History, Settings, LogOut, HelpCircle, Activity, FileText } from "lucide-react";
+import { AeyeLogo } from "@/components/AeyeLogo";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -68,16 +69,11 @@ export function WebLayout({ children, title }: WebLayoutProps) {
       <header className="sticky top-0 z-50 w-full border-b bg-white/95 dark:bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="container flex h-16 items-center justify-between mx-auto px-6">
           {/* Logo and Brand */}
-          <Link href="/" className="flex items-center gap-3 cursor-pointer no-underline">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <ScanEye className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                AEYE
-              </span>
-              <span className="text-xs text-muted-foreground">AI-guided retinal screening</span>
-            </div>
+          <Link href="/" className="flex flex-col items-start cursor-pointer no-underline text-slate-900 dark:text-white">
+            <AeyeLogo className="h-9 w-auto" />
+            <span className="text-[10px] text-muted-foreground leading-none mt-0.5 ml-0.5">
+              AI-guided retinal screening
+            </span>
           </Link>
 
           {/* Center Navigation */}
