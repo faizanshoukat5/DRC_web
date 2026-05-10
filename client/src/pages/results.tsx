@@ -479,7 +479,7 @@ export default function ResultsPage() {
                   <img
                     src={scan.originalImageUrl}
                     alt="Original fundus"
-                    className="absolute inset-0 h-full w-full object-contain"
+                    className="absolute inset-0 h-full w-full object-cover"
                     data-testid="img-fundus-original"
                   />
                   <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">
@@ -495,7 +495,7 @@ export default function ResultsPage() {
                     <img
                       src={activeHeatmapUrl}
                       alt="AI Grad-CAM heatmap"
-                      className={`absolute inset-0 h-full w-full object-contain transition-opacity ${colormapLoading ? "opacity-40" : "opacity-100"}`}
+                      className={`absolute inset-0 h-full w-full object-cover transition-opacity ${colormapLoading ? "opacity-40" : "opacity-100"}`}
                       data-testid="img-fundus-heatmap"
                     />
                     {colormapLoading && (
