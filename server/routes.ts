@@ -7,6 +7,7 @@ import { supabaseAdmin } from "./supabaseClient";
 import multer from "multer";
 import path from "path";
 import {
+  DEFAULT_COLORMAP,
   DEFAULT_MODEL,
   diagnosisFromPrediction,
   getAvailableModels,
@@ -14,8 +15,11 @@ import {
   heatmapBufferFromBase64,
   mapClassToSeverity,
   predictFundus,
+  type Colormap,
   type ModelKey,
 } from "./mlClient";
+
+const VALID_COLORMAPS: Colormap[] = ["turbo", "inferno", "magma", "viridis", "jet"];
 
 type RequestUser = {
   id: string;
@@ -529,15 +533,27 @@ export async function registerRoutes(
     }
   });
 
-  // Available models — surfaces config to the client so it can render
-  // the model picker with the same labels/descriptions as the mobile app.
+  // Available models + colormaps — surfaces config to the client so it can
+  // render the picker with the same labels/descriptions as the mobile app.
   app.get("/api/models", (_req: Request, res: Response) => {
     const models = getAvailableModels().map((m) => ({
       key: m.key,
       label: m.label,
       description: m.description,
     }));
-    res.json({ models, default: DEFAULT_MODEL });
+    const colormaps = [
+      { key: "turbo",   label: "Turbo",   description: "Default. Smooth blue→green→yellow→red gradient." },
+      { key: "inferno", label: "Inferno", description: "Higher contrast against retinal red. Black→red→yellow→white." },
+      { key: "magma",   label: "Magma",   description: "Dark, saturated. Black→purple→pink→white." },
+      { key: "viridis", label: "Viridis", description: "Colorblind-friendly. Purple→teal→yellow." },
+      { key: "jet",     label: "Jet",     description: "Classic. Blue→cyan→yellow→red. Less perceptually uniform." },
+    ];
+    res.json({
+      models,
+      default: DEFAULT_MODEL,
+      colormaps,
+      defaultColormap: DEFAULT_COLORMAP,
+    });
   });
 
   // Doctor: upload fundus image, run inference, and create scan
@@ -557,6 +573,11 @@ export async function registerRoutes(
             ? requestedModel
             : DEFAULT_MODEL;
         const modelInfo = getModelInfo(modelKey);
+
+        const requestedColormap = (req.body?.colormap as string)?.toLowerCase();
+        const colormap: Colormap = (VALID_COLORMAPS as string[]).includes(requestedColormap)
+          ? (requestedColormap as Colormap)
+          : DEFAULT_COLORMAP;
 
         if (!file) return res.status(400).json({ error: "No file uploaded" });
         if (!modelInfo.url) {
@@ -589,6 +610,7 @@ export async function registerRoutes(
             file.mimetype,
             file.originalname,
             modelKey,
+            colormap,
           );
         } catch (err: any) {
           inferenceError = err?.message ?? "Analysis failed";
@@ -639,6 +661,7 @@ export async function registerRoutes(
                 rawClassId: prediction.classId,
                 modelKey: prediction.modelKey,
                 modelLabel: modelInfo.label,
+                colormap: prediction.colormap ?? colormap,
               },
             }
           : {

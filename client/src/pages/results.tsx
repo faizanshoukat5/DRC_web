@@ -303,60 +303,62 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Two-column on desktop, stacked on mobile */}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          {/* Left: Image with heatmap toggle */}
-          <div className="space-y-3">
-            <div className="relative aspect-square w-full max-h-[600px] overflow-hidden rounded-2xl bg-slate-900 shadow-lg">
-              {scan.originalImageUrl ? (
-                <>
+        {/* Top: side-by-side original + heatmap. Stacks under lg. */}
+        <div className="mb-6">
+          {scan.originalImageUrl ? (
+            <div
+              className={`grid gap-4 ${
+                hasDistinctHeatmap ? "md:grid-cols-2" : "grid-cols-1"
+              }`}
+            >
+              {/* Original fundus */}
+              <figure className="space-y-2">
+                <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900 shadow-md">
                   <img
                     src={scan.originalImageUrl}
                     alt="Original fundus"
                     className="absolute inset-0 h-full w-full object-contain"
                     data-testid="img-fundus-original"
                   />
-                  {hasDistinctHeatmap && (
-                    <motion.img
+                  <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">
+                    Original
+                  </span>
+                </div>
+              </figure>
+
+              {/* AI heatmap (only when distinct from original) */}
+              {hasDistinctHeatmap && (
+                <figure className="space-y-2">
+                  <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900 shadow-md">
+                    <img
                       src={scan.heatmapImageUrl}
-                      alt="AI heatmap"
+                      alt="AI Grad-CAM heatmap"
                       className="absolute inset-0 h-full w-full object-contain"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: showHeatmap ? 1 : 0 }}
-                      transition={{ duration: 0.4 }}
                       data-testid="img-fundus-heatmap"
                     />
-                  )}
-                </>
-              ) : (
-                <div className="flex h-full items-center justify-center text-slate-400 text-sm">
-                  No image available
-                </div>
-              )}
-
-              {hasDistinctHeatmap && (
-                <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/10 bg-black/70 px-4 py-2 backdrop-blur-md">
-                  <Label htmlFor="heatmap-mode" className="text-xs font-medium text-white">
-                    Show heatmap
-                  </Label>
-                  <Switch
-                    id="heatmap-mode"
-                    checked={showHeatmap}
-                    onCheckedChange={setShowHeatmap}
-                    data-testid="switch-heatmap"
-                  />
-                </div>
+                    <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">
+                      AI Heatmap
+                      {meta.colormap ? ` · ${String(meta.colormap)}` : ""}
+                    </span>
+                  </div>
+                </figure>
               )}
             </div>
+          ) : (
+            <div className="flex h-[280px] w-full items-center justify-center rounded-2xl bg-slate-900 text-sm text-slate-400">
+              No image available
+            </div>
+          )}
 
-            {hasDistinctHeatmap && showHeatmap && (
-              <p className="text-xs text-slate-500 px-1">
-                Warm (red/yellow) areas show regions the AI focused on for this diagnosis.
-              </p>
-            )}
-          </div>
+          {hasDistinctHeatmap && (
+            <p className="mt-3 text-center text-xs text-slate-500">
+              Warm (red/yellow) areas show regions the AI focused on for this diagnosis.
+            </p>
+          )}
+        </div>
 
-          {/* Right: Diagnosis + metadata */}
+        {/* Diagnosis + metadata — centered column under the images */}
+        <div className="mx-auto max-w-3xl">
           <div className="space-y-4">
             {/* Diagnosis Card */}
             <Card className="p-6">

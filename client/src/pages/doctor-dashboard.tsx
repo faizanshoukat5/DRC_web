@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 
 type AvailableModel = { key: string; label: string; description: string };
+type AvailableColormap = { key: string; label: string; description: string };
 
 export default function DoctorDashboard() {
   const [, setLocation] = useLocation();
@@ -44,6 +45,7 @@ export default function DoctorDashboard() {
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("rp_v1");
+  const [selectedColormap, setSelectedColormap] = useState<string>("turbo");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,19 +60,33 @@ export default function DoctorDashboard() {
     queryFn: getScans,
   });
 
-  // Available ML backends — driven by what's configured server-side. If only
-  // one is set (or fetch fails), the picker falls back to a hidden default.
+  // Available ML backends + colormaps — driven by what's configured
+  // server-side. If only one model is set (or fetch fails), the model
+  // picker hides; the colormap picker is always shown.
   const { data: modelsResp } = useQuery({
     queryKey: ["ml-models"],
     queryFn: async () => {
       const res = await fetch("/api/models");
-      if (!res.ok) return { models: [], default: "rp_v1" };
-      return res.json() as Promise<{ models: AvailableModel[]; default: string }>;
+      if (!res.ok)
+        return {
+          models: [],
+          default: "rp_v1",
+          colormaps: [],
+          defaultColormap: "turbo",
+        };
+      return res.json() as Promise<{
+        models: AvailableModel[];
+        default: string;
+        colormaps: AvailableColormap[];
+        defaultColormap: string;
+      }>;
     },
     staleTime: 60_000,
   });
   const availableModels = modelsResp?.models ?? [];
   const showModelPicker = availableModels.length > 1;
+  const availableColormaps = modelsResp?.colormaps ?? [];
+  const showColormapPicker = availableColormaps.length > 1;
 
   const recentScans = scans?.slice(0, 5) ?? [];
   const totalPatients = patients?.length ?? 0;
@@ -114,6 +130,7 @@ export default function DoctorDashboard() {
       form.append("file", file);
       form.append("patientId", selectedPatientId);
       form.append("model", selectedModel);
+      form.append("colormap", selectedColormap);
 
       const res = await fetch("/api/doctor/upload", {
         method: "POST",
@@ -324,6 +341,48 @@ export default function DoctorDashboard() {
                   </div>
                   <p className="text-xs text-slate-500">
                     {availableModels.find((m) => m.key === selectedModel)?.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Colormap Picker — heatmap palette baked in at predict time */}
+              {showColormapPicker && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-600">
+                    Heatmap colormap
+                  </Label>
+                  <Select value={selectedColormap} onValueChange={setSelectedColormap}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Choose a colormap..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableColormaps.map((c) => (
+                        <SelectItem key={c.key} value={c.key}>
+                          <div className="flex items-center gap-2">
+                            {/* Tiny gradient swatch hints what each colormap looks like */}
+                            <span
+                              className="h-3 w-8 rounded-sm border border-slate-200"
+                              style={{
+                                background:
+                                  c.key === "inferno"
+                                    ? "linear-gradient(90deg,#000004,#420A68,#932667,#DD513A,#FCA50A,#FCFFA4)"
+                                    : c.key === "magma"
+                                      ? "linear-gradient(90deg,#000004,#3B0F70,#8C2981,#DE4968,#FE9F6D,#FCFDBF)"
+                                      : c.key === "viridis"
+                                        ? "linear-gradient(90deg,#440154,#3B528B,#21908C,#5DC863,#FDE725)"
+                                        : c.key === "jet"
+                                          ? "linear-gradient(90deg,#00007F,#0000FF,#00FFFF,#FFFF00,#FF7F00,#7F0000)"
+                                          : "linear-gradient(90deg,#30123B,#4146F5,#1AE4B6,#A4FC3C,#FABA39,#E6311F,#7A0403)",
+                              }}
+                            />
+                            <span>{c.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    {availableColormaps.find((c) => c.key === selectedColormap)?.description}
                   </p>
                 </div>
               )}

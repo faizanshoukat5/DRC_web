@@ -17,6 +17,7 @@ export interface Prediction {
   temperatureUsed: number;
   heatmapBase64?: string;
   modelKey: ModelKey;
+  colormap?: string;        // turbo | inferno | etc — what the server applied
 }
 
 export interface ModelInfo {
@@ -83,6 +84,9 @@ export function diagnosisFromPrediction(prediction: Prediction): string {
   return `${name} DR`;
 }
 
+export type Colormap = "turbo" | "inferno" | "magma" | "viridis" | "jet";
+export const DEFAULT_COLORMAP: Colormap = "turbo";
+
 /**
  * Call the FastAPI /predict endpoint with a fundus image buffer and return a
  * normalized Prediction. Throws on network/HTTP/parse errors.
@@ -92,6 +96,7 @@ export async function predictFundus(
   mimetype: string,
   filename: string,
   modelKey: ModelKey = DEFAULT_MODEL,
+  colormap: Colormap = DEFAULT_COLORMAP,
 ): Promise<Prediction> {
   const model = MODELS[modelKey];
   if (!model.url) {
@@ -101,6 +106,9 @@ export async function predictFundus(
   const fd = new FormData();
   // Node's global FormData accepts Blob from buffer
   fd.append("file", new Blob([buffer], { type: mimetype || "image/jpeg" }), filename);
+  // Partner doesn't accept this field; it's ignored harmlessly. RetinaPilot
+  // reads it server-side and selects the matching cv2 colormap.
+  fd.append("colormap", colormap);
 
   const headers: Record<string, string> = {};
   if (model.apiKey) headers["x-api-key"] = model.apiKey;
@@ -158,6 +166,7 @@ export async function predictFundus(
     temperatureUsed: Number(body.temperature_used ?? 1),
     heatmapBase64: heatmap,
     modelKey,
+    colormap: typeof body.colormap === "string" ? body.colormap : undefined,
   };
 }
 
