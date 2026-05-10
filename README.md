@@ -1,326 +1,174 @@
-﻿# Diabetic Retinopathy Detection and Stage Classification (RetinaAI) - Web Application
+# AEYE — AI-Guided Retinal Screening (Web Platform)
 
- A full-stack web platform for diabetic retinopathy (DR) screening and stage classification. Built for clinicians and patients with AI-powered fundus image analysis, explainable heatmaps, and comprehensive scan history tracking.
-
----
-
-##  Features
-
-- **AI-Powered Detection**: Upload fundus images and receive DR severity classification with confidence scores
-- **Explainable AI**: Visual heatmaps highlight areas of concern for clinical validation
-- **Role-Based Access**: Separate dashboards for administrators, doctors, and patients
-- **Doctor-Patient Workflow**: Doctors upload scans for assigned patients; patients view their results
-- **Secure Storage**: All scans and reports stored securely via Supabase with Row Level Security (RLS)
-- **PDF Reports**: Downloadable reports with scan images, severity grades, and AI confidence scores
-- **Admin Panel**: Approve doctor registrations and manage platform users
+AEYE is a clinical web application for diabetic retinopathy (DR) screening. Doctors upload fundus photographs, an EfficientNet-B4 model grades severity across five levels (No DR → Proliferative), and results are displayed alongside Grad-CAM heatmaps with a multi-colormap toggle. Progression alerts compare the current scan against the patient's previous visit and surface worsening or improvement automatically.
 
 ---
 
-##  Table of Contents
+## Features
 
-- [Tech Stack](#-tech-stack)
-- [Prerequisites](#-prerequisites)
-- [Installation](#-installation)
-- [Environment Setup](#-environment-setup)
-- [Database Setup](#-database-setup)
-- [Running the Application](#-running-the-application)
-- [Project Structure](#-project-structure)
-- [API Endpoints](#-api-endpoints)
-- [Security & RLS](#-security--rls)
-- [Deployment](#-deployment)
-- [Contributing](#-contributing)
+- **DR grading** — 5-class severity via temperature-calibrated EfficientNet-B4 with confidence scores
+- **Grad-CAM heatmaps** — 5 colormaps (Turbo, Inferno, Jet, Viridis, Magma); Turbo + Inferno pre-rendered at inference time, rest fetched on-demand via `/recolor`
+- **Progression alerts** — rule-based red/green banner on the results page when DR worsens or improves vs. the patient's prior scan
+- **Scan history trend badges** — Worsened / Improved / Stable / New color-coded pill per row in the history list
+- **Multi-role auth** — Patient, Doctor, Admin via Supabase magic-link email
+- **PDF reports** — downloadable per-scan clinical summary
+- **Follow-up scheduling** — doctors set follow-up dates; patients see reminders on their dashboard
+- **Dual-model support** — AEYE v1 (calibrated) + optional partner model; model picker surfaces when both URLs are configured
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
-**Frontend:**
-- React 19 with TypeScript
-- Vite (build tool)
-- TailwindCSS + shadcn/ui components
-- React Query for data fetching
-- React Router for navigation
-
-**Backend:**
-- Node.js + Express
-- Supabase (PostgreSQL + Auth + Storage)
-- Service role for privileged operations
-
-**AI/ML:**
-- Fundus image analysis (model integration ready)
-- Heatmap generation for explainability
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui |
+| Routing | Wouter |
+| Backend | Node.js 20, Express (ESM), TypeScript |
+| Database / Auth | Supabase (Postgres + Row-Level Security + Magic-Link) |
+| ORM / Migrations | Drizzle ORM |
+| PDF | jsPDF |
 
 ---
 
-##  Prerequisites
+## Project Structure
 
-- **Node.js** 18+ (with npm)
-- **Git**
-- **Supabase account** (free tier works)
-- **Supabase CLI** (optional but recommended): `npm install -g supabase`
+```
+├── client/               # React + Vite frontend
+│   └── src/
+│       ├── pages/        # Route components (dashboards, results, history, …)
+│       ├── components/   # Shared UI (web-layout, shadcn/ui primitives)
+│       ├── hooks/        # useAuth, …
+│       └── lib/          # api.ts, progression.ts, supabaseClient.ts
+├── server/               # Express backend
+│   ├── index.ts          # Entry point
+│   ├── routes.ts         # REST endpoints
+│   ├── mlClient.ts       # ML backend proxy (AEYE v1 + partner model)
+│   ├── storage.ts        # Supabase Storage helpers
+│   └── supabaseClient.ts # Admin client (service role)
+├── shared/               # Types shared by client + server
+└── supabase/             # SQL migrations
+```
 
 ---
 
-##  Installation
+## Prerequisites
 
-### 1. Clone the repository
+- Node.js 20+
+- A [Supabase](https://supabase.com) project
+- ML backend URL — Hugging Face Space or any FastAPI deployment
+
+---
+
+## Installation
 
 ```bash
 git clone https://github.com/faizanshoukat5/DRC_web.git
 cd DRC_web
-```
-
-### 2. Install dependencies
-
-```bash
 npm install
 ```
 
-This installs all dependencies for both the client and server.
-
 ---
 
-##  Environment Setup
+## Environment Variables
 
-You need to configure environment variables for both the **client** and **server**.
+Create two files in the project root (see `.env.example` for reference).
 
-### Client Environment Variables
-
-Create `client/.env`:
-
+**`.env`** — Vite client (safe to expose to the browser):
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_public_key
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### Server Environment Variables
-
-Create `server/.env` (or set in your deployment environment):
-
+**`.env.server`** — Express server (keep secret, never commit):
 ```env
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DATABASE_URL=postgres://user:password@host:5432/database
 PORT=3000
+
+# AEYE ML backend (required for predictions)
+DR_API_URL=https://faizan055-dr-classifier.hf.space
+DR_API_KEY=hf_xxxxxxxxxxxxxxxxxxxx
+
+# Optional partner model — leave unset to hide the model picker
+DR_API_URL_PARTNER=https://hissanzahir-dr-detection-api.hf.space
 ```
 
-** Security Warning:** Never commit your `SUPABASE_SERVICE_ROLE_KEY` to version control. Add `.env` to `.gitignore`.
+> `SUPABASE_SERVICE_ROLE_KEY` bypasses Row-Level Security. Never expose it in the browser or commit it to version control.
 
 ---
 
-##  Database Setup
-
-### 1. Create a Supabase Project
-
-Go to [supabase.com](https://supabase.com) and create a new project. Note your project URL and keys.
-
-### 2. Apply Database Migrations
-
-The `supabase/migrations/` folder contains all SQL migrations to set up your database schema.
-
-**Option A: Using Supabase CLI (Recommended)**
+## Local Development
 
 ```bash
-# Link your local project to your Supabase project
-npx supabase link --project-ref your_project_ref
-
-# Push all migrations
-npx supabase db push
+npm run db:push   # apply schema to Supabase
+npm run dev       # Express + Vite HMR on http://localhost:3000
 ```
-
-**Option B: Manual SQL Execution**
-
-Copy and run each migration file in order via the Supabase Dashboard  SQL Editor:
-
-1. `20251213113312_create_scans_table.sql`
-2. `20251213170500_add_profiles.sql`
-3. `20251216151908_add_service_role_to_profiles.sql`
-4. `20251219000000_add_doctor_patient_relationships.sql`
-5. `20260128000000_add_admin_rls_policies.sql`
-
-### 3. Enable Storage Bucket
-
-Create a storage bucket named `fundus_images` in your Supabase project:
-
-1. Go to **Storage** in Supabase Dashboard
-2. Create new bucket: `fundus_images`
-3. Set appropriate policies (public read or authenticated read depending on requirements)
 
 ---
 
-##  Running the Application
-
-### Development Mode
-
-#### 1. Start the backend server
+## Production Build
 
 ```bash
-npm run dev
-```
-
-This starts the Express server (default: `http://localhost:3000`) and Vite dev server (default: `http://localhost:5173`).
-
-The dev script runs both server and client concurrently.
-
-#### 2. Access the application
-
-Open your browser to:
-
-```
-http://localhost:5173
-```
-
-### Production Build
-
-```bash
-# Build the client
 npm run build
-
-# Start production server
 npm start
 ```
 
-The server will serve the built client from `dist`.
+`npm run build` bundles the React app into `dist/public/` and compiles the server to `dist/index.cjs`. `npm start` serves both from the same Express process.
 
 ---
 
-##  Project Structure
+## Supabase Setup
 
-```
-DRC_web/
- client/                 # React frontend
-    src/
-       components/    # UI components (shadcn/ui)
-       pages/         # Page components
-       hooks/         # Custom React hooks
-       lib/           # API client, utils, Supabase config
-       main.tsx       # Entry point
-    index.html
-    public/            # Static assets
- server/                # Express backend
-    index.ts           # Server entry
-    routes.ts          # API routes
-    storage.ts         # Supabase storage helpers
-    supabaseClient.ts  # Service role client
- shared/                # Shared TypeScript types
-    schema.ts          # Database schema types
- supabase/              # Database migrations
-    config.toml
-    migrations/
- docs/                  # Documentation
- script/                # Build scripts
- package.json
- tsconfig.json
- vite.config.ts
-```
+1. Create a project at [supabase.com](https://supabase.com).
+2. Copy **Project URL** and **service role key** into `.env.server`.
+3. Copy the **anon/public key** into `.env`.
+4. Run `npm run db:push` to apply the Drizzle schema.
+5. In **Authentication → URL Configuration**, add your deployed domain to *Redirect URLs* so magic-link emails work in production (e.g., `https://yourdomain.com/**`).
 
 ---
 
-##  API Endpoints
+## ML Backend
 
-The Express server (`server/routes.ts`) provides privileged endpoints that use the service role:
+The Express server proxies uploaded fundus images to a FastAPI service. The service must expose:
 
-- `GET /api/admin/pending-doctors` - List doctors pending approval (admin only)
-- `POST /api/admin/approve-doctor/:id` - Approve a doctor registration
-- `GET /api/scans` - List scans (with RLS filtering)
-- `POST /api/upload` - Upload fundus images to storage
+- `POST /predict` — multipart `file` field; returns `class_id`, `class_name`, `confidence`, `probabilities`, `heatmaps_b64` (colormap → base64 PNG dict), `calibrated`, `temperature_used`
+- `POST /recolor` — multipart `file` + `colormap` field; returns `heatmap_b64`
 
-See `server/routes.ts` for full endpoint documentation.
+Pre-trained weights and the reference FastAPI implementation are at [Hugging Face — faizan055/dr-classifier](https://huggingface.co/spaces/faizan055/dr-classifier).
 
 ---
 
-##  Security & RLS
+## User Roles
 
-### Row Level Security (RLS)
+| Role | Capabilities |
+|---|---|
+| `patient` | View own scans, follow-up schedule, download PDFs |
+| `doctor` | Upload scans for assigned patients, write clinical notes, create follow-ups |
+| `admin` | View all scans and profiles, approve doctor registrations |
 
-All database tables have RLS policies to ensure data isolation:
-
-- **Patients** can only view their own scans
-- **Doctors** can view scans for their assigned patients
-- **Admins** have elevated permissions via `is_admin()` helper function
-
-### Admin RLS Policy
-
-The migration `20260128000000_add_admin_rls_policies.sql` creates:
-
-1. An `is_admin()` SQL function that checks if the current user has `role = 'admin'`
-2. RLS policies allowing admins to SELECT and UPDATE the `profiles` table
-
-### Best Practices
-
-- **Never expose service role key** to client code
-- Use the **anon key** in client environments
-- Leverage **server endpoints** for privileged operations
-- Validate user roles on the backend before performing sensitive actions
+New accounts default to `patient`. Doctors are approved by an admin via the Admin Dashboard or directly in the Supabase profiles table.
 
 ---
 
-##  Deployment
+## Deployment
 
-### Deploy to Vercel/Netlify (Frontend + Serverless Functions)
+### cPanel (Node.js Selector)
 
-1. Push to GitHub
-2. Connect your repo to Vercel/Netlify
-3. Set environment variables in deployment settings
-4. Deploy
+1. Upload the project to your cPanel home directory.
+2. Open **Node.js Selector**, create an app: entry file `dist/index.cjs`, Node.js 20.
+3. Set all environment variables in the Selector UI.
+4. Run `npm install && npm run build` in the terminal, then restart the app.
 
-### Deploy to VPS (Full-stack)
+### Railway / Render
 
-```bash
-# Build the app
-npm run build
-
-# Run with PM2 or similar
-pm2 start server/index.js --name drc-web
-```
-
-### Supabase Setup
-
-Ensure your Supabase project is in production mode with:
-- All migrations applied
-- Storage bucket configured
-- Auth providers enabled
-- API keys secured
+1. Connect this GitHub repo.
+2. Set environment variables in the platform dashboard.
+3. Build command: `npm run build`
+4. Start command: `npm start`
 
 ---
 
-##  Contributing
+## License
 
-We welcome contributions! To contribute:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m 'Add some feature'`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
-
-### Code Style
-
-- Use TypeScript for type safety
-- Follow existing code structure and naming conventions
-- Add comments for complex logic
-- Test your changes locally before submitting PR
-
----
-
-##  Additional Resources
-
-- **Supabase Documentation**: https://supabase.com/docs
-- **React Query**: https://tanstack.com/query/latest
-- **shadcn/ui**: https://ui.shadcn.com
-- **TailwindCSS**: https://tailwindcss.com
-
----
-
-##  License
-
-This project is for educational and research purposes. Please ensure compliance with healthcare data regulations (HIPAA, GDPR, etc.) when deploying in production.
-
----
-
-##  Support
-
-For issues, questions, or feature requests, please open an issue on GitHub.
-
----
-
-**Last Updated:** February 2026
+MIT
