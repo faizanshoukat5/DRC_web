@@ -24,7 +24,7 @@ export function AeyeLogo({ className }: { className?: string }) {
       {/* Eye — blue fill so the white iris is always visible */}
       <ellipse cx="27" cy="23" rx="9.5" ry="6" fill={BLUE} stroke={BLUE} strokeWidth="1.5" />
       {/* Iris */}
-      <circle cx="27" cy="23" r="3.2" fill="white" />
+      <circle cx="27" cy="23" r="3.2" fill="black" />
 
       {/* Scan lines */}
       <path d="M36 19 C 70 16, 130 16, 218 17" stroke={BLUE_LIGHT} strokeWidth="1.2" opacity="0.7" />
