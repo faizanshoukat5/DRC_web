@@ -347,9 +347,13 @@ export default function DoctorDashboard() {
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="relative aspect-video rounded-xl overflow-hidden"
+                      className="relative aspect-video rounded-xl overflow-hidden bg-black"
                     >
-                      <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+                      {/* object-contain so the full fundus is visible (square-ish
+                          source vs 16:9 container = letterboxed black bars on
+                          left/right). object-cover would crop top/bottom which
+                          can hide diagnostically relevant areas. */}
+                      <img src={preview} alt="Preview" className="w-full h-full object-contain" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       <button
                         type="button"

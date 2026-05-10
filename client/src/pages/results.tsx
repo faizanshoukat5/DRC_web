@@ -294,14 +294,14 @@ export default function ResultsPage() {
                   <img
                     src={scan.originalImageUrl}
                     alt="Original fundus"
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className="absolute inset-0 h-full w-full object-contain"
                     data-testid="img-fundus-original"
                   />
                   {hasDistinctHeatmap && (
                     <motion.img
                       src={scan.heatmapImageUrl}
                       alt="AI heatmap"
-                      className="absolute inset-0 h-full w-full object-cover"
+                      className="absolute inset-0 h-full w-full object-contain"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: showHeatmap ? 1 : 0 }}
                       transition={{ duration: 0.4 }}
