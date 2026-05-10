@@ -13,7 +13,11 @@ import {
   Loader2,
   ChevronRight,
   ScanEye,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
+import { getProgressionStatus } from "@/lib/progression";
 import { useQuery } from "@tanstack/react-query";
 import { getScans } from "@/lib/api";
 import { format } from "date-fns";
@@ -115,66 +119,99 @@ export default function HistoryPage() {
             <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
               All Scans
             </h2>
-            {scans.map((scan, index) => (
-              <motion.div
-                key={scan.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <Link href={`/results/${scan.id}`}>
-                  <Card className="p-4 hover:shadow-md transition-all cursor-pointer border-slate-200/70 hover:border-primary/30">
-                    <div className="flex items-center gap-4">
-                      {/* Scan thumbnail (real fundus when available, fallback icon) */}
-                      <div className="w-14 h-14 shrink-0 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
-                        {scan.originalImageUrl ? (
-                          <img
-                            src={scan.originalImageUrl}
-                            alt={`Scan #${scan.id}`}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <Eye className="h-6 w-6 text-slate-500" />
-                        )}
-                      </div>
-
-                      {/* Scan Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="font-semibold text-slate-900 truncate">
-                            {scan.diagnosis || `Scan #${scan.id}`}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={`text-xs shrink-0 ${getSeverityColor(scan.severity || "none")}`}
-                          >
-                            {getSeverityIcon(scan.severity || "none")}
-                            <span className="ml-1 capitalize">{scan.severity || "none"}</span>
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(scan.timestamp), "MMM d, yyyy")}
-                          </span>
-                          {typeof scan.confidence === "number" && scan.confidence > 0 && (
-                            <span className="flex items-center gap-1">
-                              <Activity className="h-3 w-3" />
-                              {Math.round(scan.confidence)}% confidence
-                            </span>
+            {scans.map((scan, index) => {
+              // scans is newest-first; scans[index+1] is the immediately prior visit
+              const prevScan = scans[index + 1] ?? null;
+              const prog = prevScan
+                ? getProgressionStatus(
+                    (scan.metadata as Record<string, any> | null)?.rawClassId as number | undefined,
+                    scan.severity ?? "",
+                    (prevScan.metadata as Record<string, any> | null)?.rawClassId as number | undefined,
+                    prevScan.severity ?? "",
+                  )
+                : ({ status: "new" } as const);
+              return (
+                <motion.div
+                  key={scan.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Link href={`/results/${scan.id}`}>
+                    <Card className="p-4 hover:shadow-md transition-all cursor-pointer border-slate-200/70 hover:border-primary/30">
+                      <div className="flex items-center gap-4">
+                        {/* Scan thumbnail (real fundus when available, fallback icon) */}
+                        <div className="w-14 h-14 shrink-0 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
+                          {scan.originalImageUrl ? (
+                            <img
+                              src={scan.originalImageUrl}
+                              alt={`Scan #${scan.id}`}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <Eye className="h-6 w-6 text-slate-500" />
                           )}
-                          <span className="text-slate-400">#{scan.id}</span>
                         </div>
-                      </div>
 
-                      {/* Arrow */}
-                      <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-                    </div>
-                  </Card>
-                </Link>
-              </motion.div>
-            ))}
+                        {/* Scan Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-semibold text-slate-900 truncate">
+                              {scan.diagnosis || `Scan #${scan.id}`}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs shrink-0 ${getSeverityColor(scan.severity || "none")}`}
+                            >
+                              {getSeverityIcon(scan.severity || "none")}
+                              <span className="ml-1 capitalize">{scan.severity || "none"}</span>
+                            </Badge>
+                            {/* Progression trend badge */}
+                            {prog.status === "worsened" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                                <TrendingUp className="h-2.5 w-2.5" /> Worsened
+                              </span>
+                            )}
+                            {prog.status === "improved" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                                <TrendingDown className="h-2.5 w-2.5" /> Improved
+                              </span>
+                            )}
+                            {prog.status === "stable" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                                <Minus className="h-2.5 w-2.5" /> Stable
+                              </span>
+                            )}
+                            {prog.status === "new" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                New
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {format(new Date(scan.timestamp), "MMM d, yyyy")}
+                            </span>
+                            {typeof scan.confidence === "number" && scan.confidence > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Activity className="h-3 w-3" />
+                                {Math.round(scan.confidence)}% confidence
+                              </span>
+                            )}
+                            <span className="text-slate-400">#{scan.id}</span>
+                          </div>
+                        </div>
+
+                        {/* Arrow */}
+                        <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+                      </div>
+                    </Card>
+                  </Link>
+                </motion.div>
+              );
+            })}
           </div>
         ) : (
           <motion.div

@@ -10,6 +10,7 @@ type DbScan = {
   diagnosis: string;
   severity: string;
   confidence: number;
+  doctor_notes?: string | null;
   model_version: string;
   inference_mode: string;
   inference_time: number;
@@ -27,6 +28,7 @@ function fromDbScan(record: DbScan): Scan {
     diagnosis: record.diagnosis,
     severity: record.severity,
     confidence: record.confidence,
+    doctorNotes: record.doctor_notes ?? undefined,
     modelVersion: record.model_version,
     inferenceMode: record.inference_mode,
     inferenceTime: record.inference_time,
@@ -43,6 +45,7 @@ function toDbInsert(scan: InsertScan) {
     diagnosis: scan.diagnosis,
     severity: scan.severity,
     confidence: scan.confidence,
+    doctor_notes: scan.doctorNotes ?? null,
     model_version: scan.modelVersion,
     inference_mode: scan.inferenceMode,
     inference_time: scan.inferenceTime,

@@ -67,18 +67,16 @@ export function WebLayout({ children, title }: WebLayoutProps) {
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-50 w-full border-b bg-white/95 dark:bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="container flex h-16 items-center justify-between mx-auto px-6">
-          {/* Logo and Brand (clickable -> homepage) */}
-          <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                <ScanEye className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  RetinaPilot
-                </h1>
-                <p className="text-xs text-muted-foreground">AI-guided retinal screening</p>
-              </div>
+          {/* Logo and Brand */}
+          <Link href="/" className="flex items-center gap-3 cursor-pointer no-underline">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+              <ScanEye className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                AEYE
+              </span>
+              <span className="text-xs text-muted-foreground">AI-guided retinal screening</span>
             </div>
           </Link>
 
@@ -155,9 +153,11 @@ export function WebLayout({ children, title }: WebLayoutProps) {
       <main className="container mx-auto px-6 py-8">
         {title && (
           <div className="mb-8">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {title}
-            </h2>
+            <Link href="/">
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white cursor-pointer hover:text-primary transition-colors">
+                {title}
+              </h2>
+            </Link>
           </div>
         )}
         {children}
@@ -168,7 +168,7 @@ export function WebLayout({ children, title }: WebLayoutProps) {
         <div className="container mx-auto px-6">
           <div className="flex items-center gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2026 RetinaPilot. All rights reserved.
+              © 2026 AEYE. All rights reserved.
             </p>
 
             <div className="ml-auto">

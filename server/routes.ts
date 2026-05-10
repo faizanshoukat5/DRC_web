@@ -15,6 +15,7 @@ import {
   heatmapBufferFromBase64,
   mapClassToSeverity,
   predictFundus,
+  recolorFundus,
   type Colormap,
   type ModelKey,
 } from "./mlClient";
@@ -503,6 +504,44 @@ export async function registerRoutes(
     }
   }));
 
+  // On-demand heatmap recolor — single-pass Grad-CAM, no re-inference.
+  // Used by the Results page when the user switches to a colormap that
+  // was not pre-rendered at upload time (e.g. Jet, Viridis, Magma).
+  app.get("/api/recolor/:scanId/:colormap", requireAuth(async (req, res) => {
+    try {
+      const scanId = parseInt((req as any).params.scanId);
+      const colormap = (req as any).params.colormap as string;
+
+      if (isNaN(scanId)) return res.status(400).json({ error: "invalid scan id" });
+      if (!VALID_COLORMAPS.includes(colormap as Colormap)) {
+        return res.status(400).json({ error: `invalid colormap; valid: ${VALID_COLORMAPS.join(", ")}` });
+      }
+
+      const scan = await storage.getScan(scanId);
+      if (!scan) return res.status(404).json({ error: "scan not found" });
+
+      // Only the owning patient or any doctor may recolor
+      if (req.user!.role !== "doctor" && req.user!.id !== scan.patientId) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      const imgUrl = scan.originalImageUrl;
+      if (!imgUrl) return res.status(404).json({ error: "no original image for this scan" });
+
+      const imgRes = await fetch(imgUrl);
+      if (!imgRes.ok) return res.status(502).json({ error: "could not fetch original image" });
+      const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+      const mime = imgRes.headers.get("content-type") || "image/jpeg";
+      const filename = imgUrl.split("/").pop() || "fundus.jpg";
+
+      const heatmapB64 = await recolorFundus(imgBuf, mime, filename, colormap as Colormap);
+      return res.json({ heatmap_b64: heatmapB64, colormap });
+    } catch (err: any) {
+      console.error("Recolor error:", err);
+      return res.status(502).json({ error: err.message ?? "recolor failed" });
+    }
+  }));
+
   // Create new scan (approved doctors only)
   app.post("/api/scans", requireApprovedDoctor, async (req, res) => {
     try {
@@ -617,27 +656,41 @@ export async function registerRoutes(
         }
         const inferenceTime = Date.now() - start;
 
-        // If the backend returned a Grad-CAM PNG, upload it to storage as a
-        // real second image so the heatmap_image_url column points at a
-        // standalone object (not a duplicate of the original).
+        // The backend now returns multiple heatmap renderings (one per
+        // colormap) so the Results page can offer a Turbo/Inferno toggle
+        // without re-running inference. Upload each variant separately and
+        // collect their public URLs into heatmapUrls keyed by colormap name.
+        // The legacy heatmapImageUrl stays the user's chosen colormap so
+        // older clients (and the scans table column) still work.
         let heatmapImageUrl = originalImageUrl;
-        if (prediction?.heatmapBase64) {
+        const heatmapUrls: Record<string, string> = {};
+
+        const heatmapVariants =
+          prediction?.heatmapsBase64 ??
+          (prediction?.heatmapBase64 ? { [colormap]: prediction.heatmapBase64 } : {});
+
+        for (const [cm, b64] of Object.entries(heatmapVariants)) {
           try {
-            const heatmapBuf = heatmapBufferFromBase64(prediction.heatmapBase64);
-            const heatmapKey = `images/${Date.now()}_${Math.random().toString(36).slice(2)}_heatmap.png`;
-            const { error: heatmapErr } = await supabaseAdmin.storage
+            const buf = heatmapBufferFromBase64(b64);
+            const k = `images/${Date.now()}_${Math.random().toString(36).slice(2)}_heatmap_${cm}.png`;
+            const { error: err } = await supabaseAdmin.storage
               .from("images")
-              .upload(heatmapKey, heatmapBuf, { contentType: "image/png" });
-            if (!heatmapErr) {
-              heatmapImageUrl = supabaseAdmin.storage
-                .from("images")
-                .getPublicUrl(heatmapKey).data.publicUrl;
+              .upload(k, buf, { contentType: "image/png" });
+            if (!err) {
+              heatmapUrls[cm] = supabaseAdmin.storage.from("images").getPublicUrl(k).data.publicUrl;
             } else {
-              console.warn("Heatmap upload failed, falling back to original:", heatmapErr.message);
+              console.warn(`Heatmap upload (${cm}) failed:`, err.message);
             }
-          } catch (err) {
-            console.warn("Heatmap decode/upload threw, falling back to original:", err);
+          } catch (e) {
+            console.warn(`Heatmap decode/upload (${cm}) threw:`, e);
           }
+        }
+        // Pick the user's chosen colormap as the canonical heatmap_image_url,
+        // falling back to whatever rendered first if that one happens to fail.
+        if (heatmapUrls[colormap]) {
+          heatmapImageUrl = heatmapUrls[colormap];
+        } else if (Object.values(heatmapUrls)[0]) {
+          heatmapImageUrl = Object.values(heatmapUrls)[0];
         }
 
         const insertPayload = prediction
@@ -662,6 +715,7 @@ export async function registerRoutes(
                 modelKey: prediction.modelKey,
                 modelLabel: modelInfo.label,
                 colormap: prediction.colormap ?? colormap,
+                heatmapUrls,
               },
             }
           : {

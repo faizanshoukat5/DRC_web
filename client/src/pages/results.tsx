@@ -1,5 +1,5 @@
 import { WebLayout } from "@/components/web-layout";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Info,
@@ -10,17 +10,25 @@ import {
   Calendar,
   AlertCircle,
   User,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
-import { getScan, getProfileName } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getScan, getProfileName, getPatientScans, updateScanDoctorNotes } from "@/lib/api";
+import { getProgressionStatus } from "@/lib/progression";
+import type { Scan } from "@shared/schema";
+import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/hooks/useAuth";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
+import { toast } from "sonner";
 
 // 5-class palette + display order. Mirrors mobile's Results screen.
 const PROB_ORDER = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"] as const;
@@ -47,12 +55,31 @@ export default function ResultsPage() {
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedColormap, setSelectedColormap] = useState<string>("turbo");
+  // On-demand cache: colormaps not pre-rendered (Jet/Viridis/Magma) are
+  // fetched from /api/recolor on first click and stored here as data URLs.
+  const [colormapCache, setColormapCache] = useState<Record<string, string>>({});
+  const [colormapLoading, setColormapLoading] = useState(false);
+  const [previousScan, setPreviousScan] = useState<Scan | null>(null);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+
+  const queryClient = useQueryClient();
+  const { role } = useAuth();
+  const isDoctor = role === "doctor";
 
   const { data: scan, isLoading } = useQuery({
     queryKey: ["scan", scanId],
     queryFn: () => getScan(scanId!),
     enabled: !!scanId,
   });
+
+  useEffect(() => {
+    if (!scan) return;
+    setNotesDraft(scan.doctorNotes ?? "");
+    setIsEditingNotes(false);
+  }, [scan?.id]);
 
   // Look up the patient's display name. Quietly resolves to null when
   // RLS denies (e.g. a different patient viewing this scan) — the UI
@@ -63,6 +90,30 @@ export default function ResultsPage() {
     enabled: !!scan?.patientId,
     staleTime: 5 * 60_000,
   });
+
+  // Seed selectedColormap from the scan's stored colormap once data loads.
+  // Runs only when scanId changes so it doesn't clobber the user's manual toggle.
+  useEffect(() => {
+    if (!scan) return;
+    const m = (scan.metadata as Record<string, any> | null) ?? {};
+    setSelectedColormap((m.colormap as string) || "turbo");
+  }, [scanId]);
+
+  // Fetch all patient scans to find the immediately prior scan for progression comparison.
+  useEffect(() => {
+    if (!scan?.patientId) return;
+    setPreviousScan(null);
+    getPatientScans(scan.patientId)
+      .then((all) => {
+        // all is sorted newest-first. Find current scan's index, take the next one (older).
+        const sorted = [...all].sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        );
+        const idx = sorted.findIndex((s) => s.id === scan.id);
+        setPreviousScan(idx >= 0 ? (sorted[idx + 1] ?? null) : null);
+      })
+      .catch(() => {});
+  }, [scan?.id, scan?.patientId]);
 
   if (isLoading || !scan) {
     return (
@@ -85,6 +136,89 @@ export default function ResultsPage() {
   const severityKey = (scan.severity || "unknown").toLowerCase();
   const badgeClass = SEVERITY_BADGE[severityKey] ?? SEVERITY_BADGE.unknown;
 
+  const progression = previousScan
+    ? getProgressionStatus(
+        meta.rawClassId as number | undefined,
+        scan.severity ?? "",
+        ((previousScan.metadata as Record<string, any> | null) ?? {}).rawClassId as number | undefined,
+        previousScan.severity ?? "",
+      )
+    : null;
+  const prevDate = previousScan
+    ? format(new Date(previousScan.timestamp), "MMM d, yyyy")
+    : null;
+
+  // Pre-rendered heatmap URLs stored at upload time (Turbo + Inferno).
+  const heatmapUrlMap: Record<string, string> = (meta.heatmapUrls ?? null) as Record<string, string> | null
+    ? { ...(meta.heatmapUrls as Record<string, string>) }
+    : hasDistinctHeatmap
+      ? { [(meta.colormap as string) || "turbo"]: scan.heatmapImageUrl }
+      : {};
+
+  // Full ordered palette for rp_v1 — Turbo/Inferno are pre-rendered (instant),
+  // the other three are fetched on-demand from /api/recolor on first click.
+  const ALL_COLORMAPS = ["turbo", "inferno", "magma", "viridis", "jet"] as const;
+  const COLORMAP_LABELS: Record<string, string> = {
+    turbo: "Turbo", inferno: "Inferno", magma: "Magma", viridis: "Viridis", jet: "Jet",
+  };
+
+  // Active URL: runtime cache > pre-rendered storage URL > legacy heatmapImageUrl
+  const activeHeatmapUrl =
+    colormapCache[selectedColormap] ??
+    heatmapUrlMap[selectedColormap] ??
+    heatmapUrlMap[Object.keys(heatmapUrlMap)[0]] ??
+    scan.heatmapImageUrl;
+
+  const showColormapToggle = hasDistinctHeatmap && meta.modelKey === "rp_v1";
+
+  const handleColormapChange = async (cm: string) => {
+    setSelectedColormap(cm);
+    // If already pre-rendered or cached, switch is instant — nothing to fetch
+    if (heatmapUrlMap[cm] || colormapCache[cm]) return;
+    // Otherwise fetch on-demand from the Node server (proxies to /recolor).
+    // The endpoint requires Supabase auth — pass the access token as Bearer.
+    setColormapLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const res = await fetch(`/api/recolor/${scan.id}/${cm}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      const data = await res.json();
+      setColormapCache((prev) => ({
+        ...prev,
+        [cm]: `data:image/png;base64,${data.heatmap_b64}`,
+      }));
+    } catch (err) {
+      console.error("Recolor fetch failed:", err);
+    } finally {
+      setColormapLoading(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!scan) return;
+    setIsSavingNotes(true);
+    try {
+      await updateScanDoctorNotes(scan.id, notesDraft);
+      const trimmed = notesDraft.trim();
+      queryClient.setQueryData(["scan", scan.id], {
+        ...scan,
+        doctorNotes: trimmed.length > 0 ? trimmed : null,
+      });
+      setIsEditingNotes(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Could not save notes");
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
   const exportPDF = async () => {
     if (!scan) return;
     try {
@@ -105,7 +239,7 @@ export default function ResultsPage() {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(20);
       pdf.setTextColor(15, 23, 42);
-      pdf.text("RetinaPilot", M, y + 14);
+      pdf.text("AEYE", M, y + 14);
 
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9);
@@ -258,14 +392,14 @@ export default function ResultsPage() {
       pdf.setFontSize(8);
       pdf.setTextColor(148, 163, 184);
       const disclaimer =
-        "This report was generated by RetinaPilot's AI screening system. The analysis is for screening purposes only and does not constitute a medical diagnosis. Please consult a qualified ophthalmologist.";
+        "This report was generated by AEYE's AI screening system. The analysis is for screening purposes only and does not constitute a medical diagnosis. Please consult a qualified ophthalmologist.";
       const wrapped = pdf.splitTextToSize(disclaimer, W - M * 2);
       pdf.text(wrapped, M, H - M);
 
       const safeName = (s: string) =>
         s.normalize("NFKD").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
       const parts = [
-        "RetinaPilot",
+        "AEYE",
         patientName ? safeName(patientName) : null,
         safeName(scan.diagnosis || "report"),
         format(new Date(scan.timestamp), "yyyy-MM-dd"),
@@ -303,6 +437,34 @@ export default function ResultsPage() {
           </div>
         )}
 
+        {/* Progression alert — shown when this scan's DR class has changed since the prior visit */}
+        {progression?.status === "worsened" && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+            <TrendingUp className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+            <div>
+              <p className="text-sm font-semibold text-red-900">
+                DR Worsened: {progression.from} → {progression.to}
+              </p>
+              <p className="mt-0.5 text-xs text-red-700">
+                Compared to scan on {prevDate} · {progression.deltaSteps} class step{progression.deltaSteps > 1 ? "s" : ""} increase
+              </p>
+            </div>
+          </div>
+        )}
+        {progression?.status === "improved" && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+            <TrendingDown className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" />
+            <div>
+              <p className="text-sm font-semibold text-green-900">
+                DR Improved: {progression.from} → {progression.to}
+              </p>
+              <p className="mt-0.5 text-xs text-green-700">
+                Compared to scan on {prevDate} · {progression.deltaSteps} class step{progression.deltaSteps > 1 ? "s" : ""} decrease
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Top: side-by-side original + heatmap. Stacks under lg. */}
         <div className="mb-6">
           {scan.originalImageUrl ? (
@@ -331,14 +493,20 @@ export default function ResultsPage() {
                 <figure className="space-y-2">
                   <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900 shadow-md">
                     <img
-                      src={scan.heatmapImageUrl}
+                      src={activeHeatmapUrl}
                       alt="AI Grad-CAM heatmap"
-                      className="absolute inset-0 h-full w-full object-contain"
+                      className={`absolute inset-0 h-full w-full object-contain transition-opacity ${colormapLoading ? "opacity-40" : "opacity-100"}`}
                       data-testid="img-fundus-heatmap"
                     />
+                    {colormapLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="rounded-full bg-black/60 px-4 py-2 text-xs font-medium text-white backdrop-blur">
+                          Loading…
+                        </div>
+                      </div>
+                    )}
                     <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">
-                      AI Heatmap
-                      {meta.colormap ? ` · ${String(meta.colormap)}` : ""}
+                      AI Heatmap · {COLORMAP_LABELS[selectedColormap] ?? selectedColormap}
                     </span>
                   </div>
                 </figure>
@@ -354,6 +522,34 @@ export default function ResultsPage() {
             <p className="mt-3 text-center text-xs text-slate-500">
               Warm (red/yellow) areas show regions the AI focused on for this diagnosis.
             </p>
+          )}
+
+          {/* Colormap toggle — Turbo/Inferno instant; Magma/Viridis/Jet on-demand */}
+          {showColormapToggle && (
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <span className="text-xs font-medium text-slate-500">Heatmap colormap:</span>
+              <div className="flex flex-wrap gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+                {ALL_COLORMAPS.map((cm) => {
+                  const active = selectedColormap === cm;
+                  const isLoading = colormapLoading && active && !heatmapUrlMap[cm] && !colormapCache[cm];
+                  return (
+                    <button
+                      key={cm}
+                      type="button"
+                      onClick={() => handleColormapChange(cm)}
+                      disabled={colormapLoading && selectedColormap !== cm}
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
+                        active
+                          ? "bg-slate-900 text-white shadow"
+                          : "text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+                      }`}
+                    >
+                      {isLoading ? "…" : COLORMAP_LABELS[cm]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
 
@@ -458,6 +654,78 @@ export default function ResultsPage() {
                     );
                   })}
                 </div>
+              </Card>
+            )}
+
+            {/* Doctor Notes */}
+            {(scan.doctorNotes || isDoctor) && (
+              <Card className="border-emerald-200 bg-emerald-50 p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-emerald-900">
+                    Doctor's Notes
+                  </h3>
+                  {isDoctor && !isEditingNotes && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setNotesDraft(scan.doctorNotes ?? "");
+                        setIsEditingNotes(true);
+                      }}
+                      className="text-emerald-700 hover:text-emerald-900"
+                    >
+                      {scan.doctorNotes ? "Edit" : "Add"}
+                    </Button>
+                  )}
+                </div>
+                {isEditingNotes ? (
+                  <div>
+                    <Textarea
+                      value={notesDraft}
+                      onChange={(event) => setNotesDraft(event.target.value)}
+                      placeholder="Add clinical observations or recommendations..."
+                      maxLength={1000}
+                      disabled={isSavingNotes}
+                      className="min-h-[120px] border-emerald-200 bg-white"
+                    />
+                    <div className="mt-2 flex items-center justify-between text-xs text-emerald-700">
+                      <span>{notesDraft.length}/1000</span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setNotesDraft(scan.doctorNotes ?? "");
+                            setIsEditingNotes(false);
+                          }}
+                          disabled={isSavingNotes}
+                          className="text-slate-600"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleSaveNotes}
+                          disabled={isSavingNotes}
+                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          {isSavingNotes ? "Saving..." : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : scan.doctorNotes ? (
+                  <p className="whitespace-pre-wrap text-sm text-emerald-900">
+                    {scan.doctorNotes}
+                  </p>
+                ) : (
+                  <p className="text-sm italic text-emerald-700">
+                    No notes yet - tap Add to record observations.
+                  </p>
+                )}
               </Card>
             )}
 

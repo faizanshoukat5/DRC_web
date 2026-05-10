@@ -86,7 +86,7 @@ export default function DoctorDashboard() {
   const availableModels = modelsResp?.models ?? [];
   const showModelPicker = availableModels.length > 1;
   const availableColormaps = modelsResp?.colormaps ?? [];
-  const showColormapPicker = availableColormaps.length > 1;
+  const showColormapPicker = availableColormaps.length > 1 && selectedModel === "rp_v1";
 
   const recentScans = scans?.slice(0, 5) ?? [];
   const totalPatients = patients?.length ?? 0;

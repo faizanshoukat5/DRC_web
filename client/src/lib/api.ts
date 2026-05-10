@@ -29,6 +29,7 @@ function fromDbScan(record: any): Scan {
     diagnosis: record.diagnosis,
     severity: record.severity,
     confidence: record.confidence,
+    doctorNotes: record.doctor_notes ?? undefined,
     modelVersion: record.model_version,
     inferenceMode: record.inference_mode,
     inferenceTime: record.inference_time,
@@ -68,6 +69,7 @@ export async function createScan(scan: InsertScan): Promise<Scan> {
     diagnosis: scan.diagnosis,
     severity: scan.severity,
     confidence: scan.confidence,
+    doctor_notes: scan.doctorNotes ?? null,
     model_version: scan.modelVersion,
     inference_mode: scan.inferenceMode,
     inference_time: scan.inferenceTime,
@@ -87,6 +89,16 @@ export async function getPatientScans(patientId: string): Promise<Scan[]> {
     .order("timestamp", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(fromDbScan);
+}
+
+export async function updateScanDoctorNotes(scanId: number, notes: string): Promise<void> {
+  const trimmed = notes.trim();
+  const { error } = await supabase
+    .from("scans")
+    .update({ doctor_notes: trimmed.length > 0 ? trimmed : null })
+    .eq("id", scanId);
+
+  if (error) throw new Error(error.message);
 }
 
 /** Look up a profile's display name by its auth.uid. Returns null on

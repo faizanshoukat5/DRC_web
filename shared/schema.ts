@@ -54,6 +54,9 @@ export const scans = pgTable("scans", {
   diagnosis: text("diagnosis").notNull(),
   severity: text("severity").notNull(),
   confidence: integer("confidence").notNull(),
+
+  // Optional clinician notes
+  doctorNotes: text("doctor_notes"),
   
   // Technical metadata
   modelVersion: text("model_version").notNull(),
