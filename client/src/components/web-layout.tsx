@@ -71,9 +71,6 @@ export function WebLayout({ children, title }: WebLayoutProps) {
           {/* Logo and Brand */}
           <Link href="/" className="flex flex-col items-start cursor-pointer no-underline text-slate-900 dark:text-white">
             <AeyeLogo className="h-9 w-auto" />
-            <span className="text-[10px] text-muted-foreground leading-none mt-0.5 ml-0.5">
-              AI-guided retinal screening
-            </span>
           </Link>
 
           {/* Center Navigation */}
@@ -167,10 +164,15 @@ export function WebLayout({ children, title }: WebLayoutProps) {
               © 2026 AEYE. All rights reserved.
             </p>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-4">
               <Link href="/faq">
                 <span className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                   FAQ
+                </span>
+              </Link>
+              <Link href="/privacy">
+                <span className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                  Privacy
                 </span>
               </Link>
             </div>

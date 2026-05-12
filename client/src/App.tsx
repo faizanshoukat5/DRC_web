@@ -17,6 +17,7 @@ import PendingDoctor from "@/pages/pending-doctor";
 import SelectDoctor from "@/pages/select-doctor";
 import FAQPage from "@/pages/faq";
 import HistoryPage from "@/pages/history";
+import PrivacyPage from "@/pages/privacy";
 
 function Router() {
   const { isAuthenticated, isLoading, role, doctorStatus } = useAuth();
@@ -34,6 +35,7 @@ function Router() {
       <Switch>
         <Route path="/" component={LandingPage} />
         <Route path="/faq" component={FAQPage} />
+        <Route path="/privacy" component={PrivacyPage} />
         <Route component={NotFound} />
       </Switch>
     );
@@ -49,6 +51,7 @@ function Router() {
         <Route path="/results/:id" component={ResultsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/faq" component={FAQPage} />
+        <Route path="/privacy" component={PrivacyPage} />
         <Route component={NotFound} />
       </Switch>
     );
@@ -71,6 +74,7 @@ function Router() {
         <Route path="/results/:id" component={ResultsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/faq" component={FAQPage} />
+        <Route path="/privacy" component={PrivacyPage} />
         <Route component={NotFound} />
       </Switch>
     );
@@ -84,6 +88,7 @@ function Router() {
         <Route path="/results/:id" component={ResultsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/faq" component={FAQPage} />
+        <Route path="/privacy" component={PrivacyPage} />
         <Route component={NotFound} />
       </Switch>
     );
