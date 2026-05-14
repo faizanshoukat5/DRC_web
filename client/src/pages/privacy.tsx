@@ -145,7 +145,11 @@ export default function PrivacyPage() {
             For privacy questions, data access requests, or deletion requests, contact us at:
           </p>
           <p className="mt-2 font-mono text-sm bg-slate-100 dark:bg-slate-800 p-3 rounded">
-            privacy@aeye.app
+            fizu0678@gmail.com
+          </p>
+          <p className="mt-3 text-sm">
+            To request account deletion specifically, see our dedicated
+            page: <a href="/delete-account" className="text-primary underline">Delete my AEYE account</a>.
           </p>
         </Section>
       </div>
