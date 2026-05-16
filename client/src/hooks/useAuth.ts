@@ -78,7 +78,7 @@ export function useAuth() {
       if (!isMounted) return;
 
       if (error) {
-        setLastError(error.message);
+        // "Auth session missing" is expected when no user is signed in — not an error to surface
         setUser(null);
       } else {
         try {

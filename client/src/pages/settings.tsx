@@ -96,7 +96,7 @@ export default function SettingsPage() {
         </section>
 
         <div className="text-center text-xs text-slate-400 pt-8">
-          <p>RetinaAI v1.0.4 (Build 2025.12.11)</p>
+          <p>A-EYE v1.0.0 (Build 2026.05.15)</p>
           <p>Model ID: CNN-LSTM-774</p>
         </div>
 

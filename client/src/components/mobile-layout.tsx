@@ -1,10 +1,11 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, History, Settings, ScanEye, Menu, LogOut, HelpCircle } from "lucide-react";
+import { Home, History, Settings, Menu, LogOut, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AeyeLogo } from "@/components/AeyeLogo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,12 +49,8 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
             ) : (
               <Link href="/">
                 <div className="flex items-center gap-3 cursor-pointer">
-                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <ScanEye className="w-5 h-5 text-white" />
-                  </div>
-                  <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
-                    {title || "RetinaAI"}
-                  </h1>
+                  <AeyeLogo className="h-7 w-auto" />
+                  <span className="sr-only">{title || "A-EYE"}</span>
                 </div>
               </Link>
             )}
@@ -110,7 +107,11 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-2 -mr-2 hover:bg-slate-100 rounded-full text-slate-500">
+                <button
+                  className="p-2 -mr-2 hover:bg-slate-100 rounded-full text-slate-500"
+                  aria-label="Open menu"
+                  title="Open menu"
+                >
                   <Menu className="w-5 h-5" />
                 </button>
               </DropdownMenuTrigger>
