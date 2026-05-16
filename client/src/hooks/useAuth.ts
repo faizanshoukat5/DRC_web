@@ -24,6 +24,7 @@ type AuthState = {
   user: AuthProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isPasswordRecovery: boolean;
   lastError: string | null;
   role: UserRole | null;
   doctorStatus: DoctorStatus | null;
@@ -67,6 +68,7 @@ export function useAuth() {
   const [user, setUser] = useState<AuthProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,6 +102,7 @@ export function useAuth() {
     loadInitialUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true);
       (async () => {
         if (!isMounted) return;
         if (!session?.user) {
@@ -257,16 +260,33 @@ export function useAuth() {
     }
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const trimmed = email.trim();
+    if (!trimmed) throw new Error('Please enter your email address.');
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string) => {
+    if (!newPassword || newPassword.length < 8) throw new Error('Password must be at least 8 characters.');
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw new Error(error.message);
+    setIsPasswordRecovery(false);
+  }, []);
+
   const state: AuthState = useMemo(
     () => ({
       user,
       isLoading,
       isAuthenticated: !!user,
+      isPasswordRecovery,
       lastError,
       role: user?.role ?? null,
       doctorStatus: user?.status ?? null,
     }),
-    [user, isLoading, lastError],
+    [user, isLoading, isPasswordRecovery, lastError],
   );
 
   return {
@@ -274,5 +294,7 @@ export function useAuth() {
     signInWithPassword,
     signUpWithPassword,
     signOut,
+    requestPasswordReset,
+    updatePassword,
   };
 }

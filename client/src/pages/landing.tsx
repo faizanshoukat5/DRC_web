@@ -1,12 +1,13 @@
 import { FormEvent, useState } from "react";
 import { Link } from "wouter";
-import { ScanEye, Shield, Zap, Database, Stethoscope, UserRound, HelpCircle, CheckCircle, ArrowRight } from "lucide-react";
+import { Shield, Zap, Database, Stethoscope, UserRound, HelpCircle, CheckCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { AeyeLogo } from "@/components/AeyeLogo";
 
 export default function LandingPage() {
   const { signInWithPassword, signUpWithPassword, isLoading, lastError } = useAuth();
@@ -64,12 +65,8 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 w-full border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="container flex h-16 items-center justify-between mx-auto px-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <ScanEye className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              RetinaAI
-            </h1>
+            <AeyeLogo className="h-10 w-auto" />
+            <span className="sr-only">AEYE</span>
           </div>
           <Link href="/faq">
             <Button variant="ghost" className="gap-2">
@@ -271,7 +268,16 @@ export default function LandingPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Password</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>Password</Label>
+                        {mode === "signin" && (
+                          <Link href="/forgot-password">
+                            <span className="text-xs text-primary hover:underline cursor-pointer">
+                              Forgot password?
+                            </span>
+                          </Link>
+                        )}
+                      </div>
                       <Input
                         type="password"
                         value={formState.password}

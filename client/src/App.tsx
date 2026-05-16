@@ -19,9 +19,16 @@ import FAQPage from "@/pages/faq";
 import HistoryPage from "@/pages/history";
 import PrivacyPage from "@/pages/privacy";
 import DeleteAccountPage from "@/pages/delete-account";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 
 function Router() {
-  const { isAuthenticated, isLoading, role, doctorStatus } = useAuth();
+  const { isAuthenticated, isLoading, isPasswordRecovery, role, doctorStatus } = useAuth();
+
+  // Always show reset-password page when coming from a reset email link
+  if (isPasswordRecovery) {
+    return <ResetPasswordPage />;
+  }
 
   if (isLoading) {
     return (
@@ -35,6 +42,8 @@ function Router() {
     return (
       <Switch>
         <Route path="/" component={LandingPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
         <Route path="/faq" component={FAQPage} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/delete-account" component={DeleteAccountPage} />
