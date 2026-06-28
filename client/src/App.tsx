@@ -22,9 +22,10 @@ import DeleteAccountPage from "@/pages/delete-account";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import AuthConfirmPage from "@/pages/auth-confirm";
+import CompleteProfilePage from "@/pages/complete-profile";
 
 function Router() {
-  const { isAuthenticated, isLoading, isPasswordRecovery, role, doctorStatus } = useAuth();
+  const { isAuthenticated, isLoading, isPasswordRecovery, needsProfile, role, doctorStatus } = useAuth();
   const [location] = useLocation();
 
   // Email-confirmation links land here; render regardless of auth state so the
@@ -45,6 +46,11 @@ function Router() {
         <div className="animate-spin h-10 w-10 rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
+  }
+
+  // Signed in (e.g. via Google) but no profile yet → finish onboarding.
+  if (needsProfile) {
+    return <CompleteProfilePage />;
   }
 
   if (!isAuthenticated) {

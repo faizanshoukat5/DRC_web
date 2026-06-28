@@ -33,6 +33,10 @@ type AuthState = {
   isLoading: boolean;
   isAuthenticated: boolean;
   isPasswordRecovery: boolean;
+  // True when there's a valid auth session (e.g. just signed in with Google)
+  // but no app profile row yet — the user must pick a role and finish setup.
+  needsProfile: boolean;
+  pendingProfile: { email: string; name: string } | null;
   lastError: string | null;
   role: UserRole | null;
   doctorStatus: DoctorStatus | null;
@@ -207,6 +211,8 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [needsProfile, setNeedsProfile] = useState(false);
+  const [pendingAuthUser, setPendingAuthUser] = useState<User | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -226,7 +232,20 @@ export function useAuth() {
       } else {
         try {
           const profile = await ensureProfileForAuthUser(data.user ?? null);
-          setUser(profile);
+          if (profile) {
+            setUser(profile);
+            setNeedsProfile(false);
+            setPendingAuthUser(null);
+          } else if (data.user) {
+            // Authenticated (e.g. via Google) but no profile yet → onboarding.
+            setUser(null);
+            setNeedsProfile(true);
+            setPendingAuthUser(data.user);
+          } else {
+            setUser(null);
+            setNeedsProfile(false);
+            setPendingAuthUser(null);
+          }
         } catch (profileError: any) {
           setLastError(profileError.message ?? "Failed to load profile");
           setUser(null);
@@ -243,13 +262,23 @@ export function useAuth() {
         if (!isMounted) return;
         if (!session?.user) {
           setUser(null);
+          setNeedsProfile(false);
+          setPendingAuthUser(null);
           setIsLoading(false);
           return;
         }
 
         try {
           const profile = await ensureProfileForAuthUser(session.user);
-          setUser(profile);
+          if (profile) {
+            setUser(profile);
+            setNeedsProfile(false);
+            setPendingAuthUser(null);
+          } else {
+            setUser(null);
+            setNeedsProfile(true);
+            setPendingAuthUser(session.user);
+          }
         } catch (profileError: any) {
           setLastError(profileError.message ?? "Failed to load profile");
           setUser(null);
@@ -423,23 +452,71 @@ export function useAuth() {
     if (error) throw new Error(error.message);
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    setLastError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    if (error) {
+      setLastError(error.message);
+      throw error;
+    }
+  }, []);
+
+  // Called from the "complete your profile" screen after an OAuth sign-in that
+  // has a session but no app profile yet (role isn't known from Google).
+  const completeProfile = useCallback(async (payload: Omit<SignUpProfilePayload, "email"> & { email?: string }) => {
+    setLastError(null);
+    const { data: authData } = await supabase.auth.getUser();
+    const authUser = authData.user;
+    if (!authUser) throw new Error("Your session expired. Please sign in again.");
+
+    const normalized = normalizeProfilePayload({ ...payload, email: payload.email ?? authUser.email });
+    if (!normalized) throw new Error("Please complete all required fields.");
+
+    await upsertProfile(authUser.id, normalized);
+    const profile = await ensureProfileForAuthUser(authUser);
+    if (!profile) throw new Error("Profile was saved but could not be loaded.");
+
+    setUser(profile);
+    setNeedsProfile(false);
+    setPendingAuthUser(null);
+    return profile;
+  }, []);
+
   const state: AuthState = useMemo(
     () => ({
       user,
       isLoading,
       isAuthenticated: !!user,
       isPasswordRecovery,
+      needsProfile,
+      pendingProfile: pendingAuthUser
+        ? {
+            email: pendingAuthUser.email ?? "",
+            name:
+              (pendingAuthUser.user_metadata?.full_name as string) ??
+              (pendingAuthUser.user_metadata?.name as string) ??
+              "",
+          }
+        : null,
       lastError,
       role: user?.role ?? null,
       doctorStatus: user?.status ?? null,
     }),
-    [user, isLoading, isPasswordRecovery, lastError],
+    [user, isLoading, isPasswordRecovery, needsProfile, pendingAuthUser, lastError],
   );
 
   return {
     ...state,
     signInWithPassword,
     signUpWithPassword,
+    signInWithGoogle,
+    completeProfile,
     signOut,
     requestPasswordReset,
     updatePassword,
