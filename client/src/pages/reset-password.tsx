@@ -1,28 +1,75 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AeyeLogo } from "@/components/AeyeLogo";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabaseClient";
+
+type LinkStatus = "checking" | "ready" | "invalid";
 
 export default function ResetPasswordPage() {
-  const { isPasswordRecovery, updatePassword } = useAuth();
+  const { updatePassword } = useAuth();
   const [, navigate] = useLocation();
+  const [status, setStatus] = useState<LinkStatus>("checking");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
-  // If not in recovery mode after a short grace period, redirect home
+  // Validate the recovery link. supabase-js (implicit flow + detectSessionInUrl)
+  // processes the token from the URL fragment during initialization and then
+  // strips it from the URL, so we must not rely solely on catching the one-time
+  // PASSWORD_RECOVERY event (it can fire before this listener subscribes).
+  // Instead we await getSession(), which resolves only after that processing
+  // completes, and also listen for the event as a belt-and-suspenders.
   useEffect(() => {
-    if (isPasswordRecovery || done) return;
-    const t = setTimeout(() => navigate("/"), 3000);
-    return () => clearTimeout(t);
-  }, [isPasswordRecovery, done, navigate]);
+    let active = true;
+    const settle = (next: LinkStatus) => {
+      if (active) setStatus(next);
+    };
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && session) settle("ready");
+    });
+
+    (async () => {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const queryParams = new URLSearchParams(window.location.search);
+
+      // Supabase redirects expired/consumed links back with an explicit error.
+      if (
+        hashParams.get("error_code") ||
+        hashParams.get("error_description") ||
+        queryParams.get("error_code")
+      ) {
+        settle("invalid");
+        return;
+      }
+
+      // PKCE fallback: if a one-time code is present, exchange it for a session.
+      const code = queryParams.get("code");
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        settle(exchangeError ? "invalid" : "ready");
+        return;
+      }
+
+      // Implicit flow: the token in the URL fragment has already been turned into
+      // a session by the time getSession() resolves.
+      const { data } = await supabase.auth.getSession();
+      settle(data.session ? "ready" : "invalid");
+    })();
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -59,11 +106,24 @@ export default function ResetPasswordPage() {
               <h2 className="text-xl font-bold text-slate-900">Password updated</h2>
               <p className="text-sm text-slate-600">Redirecting you to sign in…</p>
             </div>
-          ) : !isPasswordRecovery ? (
-            <div className="text-center space-y-3">
+          ) : status === "checking" ? (
+            <div className="text-center space-y-3 py-4">
+              <Loader2 className="w-7 h-7 text-primary animate-spin mx-auto" />
+              <p className="text-sm text-slate-600">Validating your reset link…</p>
+            </div>
+          ) : status === "invalid" ? (
+            <div className="text-center space-y-4">
+              <h2 className="text-xl font-bold text-slate-900">Link expired or invalid</h2>
               <p className="text-sm text-slate-600">
-                This link has expired or is invalid. Redirecting…
+                This password reset link is no longer valid. Reset links expire after a
+                short time and can only be used once. Please request a new one.
               </p>
+              <Button className="w-full" size="lg" onClick={() => navigate("/forgot-password")}>
+                Request a new link
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
+                Back to sign in
+              </Button>
             </div>
           ) : (
             <div className="space-y-6">
