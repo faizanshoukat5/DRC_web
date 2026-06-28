@@ -401,6 +401,19 @@ export function useAuth() {
     setIsPasswordRecovery(false);
   }, []);
 
+  const resendVerificationEmail = useCallback(async (email: string) => {
+    const trimmed = email.trim();
+    if (!trimmed) throw new Error("Please enter your email address first.");
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: trimmed,
+      options: {
+        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      },
+    });
+    if (error) throw new Error(error.message);
+  }, []);
+
   const state: AuthState = useMemo(
     () => ({
       user,
@@ -421,5 +434,6 @@ export function useAuth() {
     signOut,
     requestPasswordReset,
     updatePassword,
+    resendVerificationEmail,
   };
 }

@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AeyeLogo } from "@/components/AeyeLogo";
 
 export default function LandingPage() {
-  const { signInWithPassword, signUpWithPassword, isLoading, lastError } = useAuth();
+  const { signInWithPassword, signUpWithPassword, resendVerificationEmail, isLoading, lastError } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [role, setRole] = useState<"patient" | "doctor">("patient");
 
@@ -26,14 +26,19 @@ export default function LandingPage() {
     specialty: "",
   });
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFeedback(null);
+    setResendError(null);
 
     try {
       if (mode === "signin") {
         await signInWithPassword(formState.email, formState.password);
+        setNeedsVerification(false);
       } else {
         const result = await signUpWithPassword({
           email: formState.email,
@@ -50,17 +55,42 @@ export default function LandingPage() {
 
         if (result.requiresEmailConfirmation) {
           setMode("signin");
+          setNeedsVerification(true);
           setFeedback(
             role === "doctor"
               ? "Check your email to confirm your account. After confirming, sign in to finish setup and wait for admin approval."
               : "Check your email to confirm your account, then sign in to finish setup.",
           );
         } else {
+          setNeedsVerification(false);
           setFeedback(role === "doctor" ? "Doctor account created. Await admin approval." : "Account created. You are signed in.");
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Authentication error", error);
+      const code = error?.code ?? "";
+      const message = (error?.message ?? "").toLowerCase();
+      if (
+        code === "email_not_confirmed" ||
+        message.includes("not confirmed") ||
+        message.includes("confirm your email")
+      ) {
+        setNeedsVerification(true);
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    setFeedback(null);
+    setResendError(null);
+    setResending(true);
+    try {
+      await resendVerificationEmail(formState.email);
+      setFeedback("Verification email sent. Check your inbox (and spam folder).");
+    } catch (error: any) {
+      setResendError(error?.message ?? "Could not resend verification email.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -272,7 +302,11 @@ export default function LandingPage() {
                       <Input
                         type="email"
                         value={formState.email}
-                        onChange={(e) => setFormState({ ...formState, email: e.target.value })}
+                        onChange={(e) => {
+                          setFormState({ ...formState, email: e.target.value });
+                          setNeedsVerification(false);
+                          setResendError(null);
+                        }}
                         placeholder="you@example.com"
                       />
                     </div>
@@ -298,6 +332,23 @@ export default function LandingPage() {
 
                     {lastError && <p className="text-sm text-red-600">{lastError}</p>}
                     {feedback && <p className="text-sm text-green-600">{feedback}</p>}
+
+                    {mode === "signin" && needsVerification && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+                        <p className="text-amber-800 dark:text-amber-300">
+                          Your email address hasn&apos;t been verified yet.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleResend}
+                          disabled={resending || !formState.email}
+                          className="mt-1 font-medium text-primary hover:underline disabled:opacity-50"
+                        >
+                          {resending ? "Sending…" : "Resend verification email"}
+                        </button>
+                        {resendError && <p className="mt-1 text-red-600">{resendError}</p>}
+                      </div>
+                    )}
 
                     <Button
                       type="submit"
