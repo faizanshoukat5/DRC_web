@@ -471,8 +471,9 @@ export function useAuth() {
   // has a session but no app profile yet (role isn't known from Google).
   const completeProfile = useCallback(async (payload: Omit<SignUpProfilePayload, "email"> & { email?: string }) => {
     setLastError(null);
-    const { data: authData } = await supabase.auth.getUser();
-    const authUser = authData.user;
+    // getSession is local (no network round-trip) — faster than getUser here.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const authUser = sessionData.session?.user ?? null;
     if (!authUser) throw new Error("Your session expired. Please sign in again.");
 
     const normalized = normalizeProfilePayload({ ...payload, email: payload.email ?? authUser.email });
