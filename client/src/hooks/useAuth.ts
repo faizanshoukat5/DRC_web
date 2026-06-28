@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { validatePassword } from "@/lib/passwordPolicy";
 import type { DoctorStatus, Profile, UserRole } from "@shared/schema";
 
 export type AuthProfile = Profile & {
@@ -298,6 +299,13 @@ export function useAuth() {
       setIsLoading(true);
       setLastError(null);
 
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        setIsLoading(false);
+        setLastError(passwordError);
+        throw new Error(passwordError);
+      }
+
       const profilePayload = normalizeProfilePayload({
         ...profileData,
         email,
@@ -395,7 +403,8 @@ export function useAuth() {
   }, []);
 
   const updatePassword = useCallback(async (newPassword: string) => {
-    if (!newPassword || newPassword.length < 8) throw new Error("Password must be at least 8 characters.");
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) throw new Error(passwordError);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw new Error(error.message);
     setIsPasswordRecovery(false);

@@ -6,8 +6,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AeyeLogo } from "@/components/AeyeLogo";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabaseClient";
+import { isPasswordValid, validatePassword } from "@/lib/passwordPolicy";
 
 type LinkStatus = "checking" | "ready" | "invalid";
 
@@ -115,6 +117,11 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
     if (password !== confirm) {
       setError("Passwords do not match.");
       return;
@@ -185,6 +192,7 @@ export default function ResetPasswordPage() {
                     required
                     autoFocus
                   />
+                  {password.length > 0 && <PasswordRequirements password={password} className="pt-1" />}
                 </div>
 
                 <div className="space-y-2">
@@ -205,7 +213,7 @@ export default function ResetPasswordPage() {
                   type="submit"
                   className="w-full"
                   size="lg"
-                  disabled={!password || !confirm || loading}
+                  disabled={!isPasswordValid(password) || !confirm || loading}
                 >
                   {loading ? "Updating…" : "Update password"}
                 </Button>

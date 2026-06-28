@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { AeyeLogo } from "@/components/AeyeLogo";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
+import { isPasswordValid } from "@/lib/passwordPolicy";
 
 export default function LandingPage() {
   const { signInWithPassword, signUpWithPassword, resendVerificationEmail, isLoading, lastError } = useAuth();
@@ -97,7 +99,10 @@ export default function LandingPage() {
   const isSubmitDisabled =
     !formState.email ||
     !formState.password ||
-    (mode === "signup" && (!formState.name || (role === "doctor" && (!formState.licenseNumber || !formState.specialty))));
+    (mode === "signup" &&
+      (!formState.name ||
+        !isPasswordValid(formState.password) ||
+        (role === "doctor" && (!formState.licenseNumber || !formState.specialty))));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -328,6 +333,9 @@ export default function LandingPage() {
                         onChange={(e) => setFormState({ ...formState, password: e.target.value })}
                         placeholder="••••••••"
                       />
+                      {mode === "signup" && formState.password.length > 0 && (
+                        <PasswordRequirements password={formState.password} className="pt-1" />
+                      )}
                     </div>
 
                     {lastError && <p className="text-sm text-red-600">{lastError}</p>}
