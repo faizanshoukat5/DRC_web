@@ -11,6 +11,12 @@ import { supabase } from "@/lib/supabaseClient";
 
 type LinkStatus = "checking" | "ready" | "invalid";
 
+// verifyOtp consumes the one-time token. A successful verify fires
+// PASSWORD_RECOVERY, which flips the router to a different branch and remounts
+// this page — without this module-level guard the fresh mount would call
+// verifyOtp again with the now-spent token and wrongly report "invalid".
+const consumedTokens = new Set<string>();
+
 export default function ResetPasswordPage() {
   const { updatePassword } = useAuth();
   const [, navigate] = useLocation();
@@ -51,6 +57,15 @@ export default function ResetPasswordPage() {
         return;
       }
 
+      // If a recovery session already exists (e.g. a prior mount of this page
+      // already verified the token, or implicit flow processed the fragment),
+      // use it directly instead of re-verifying a now-spent token.
+      const { data: existing } = await supabase.auth.getSession();
+      if (existing.session) {
+        settle("ready");
+        return;
+      }
+
       // Preferred flow: a token_hash in the query string (email template uses
       // {{ .TokenHash }} instead of {{ .ConfirmationURL }}). This survives email
       // link scanners (e.g. Gmail) that pre-fetch links, because the one-time
@@ -58,10 +73,21 @@ export default function ResetPasswordPage() {
       // don't execute JS. Also works across devices.
       const tokenHash = queryParams.get("token_hash") ?? hashParams.get("token_hash");
       if (tokenHash) {
+        if (consumedTokens.has(tokenHash)) {
+          // Already verified by an earlier mount; wait for the session to settle.
+          const { data } = await supabase.auth.getSession();
+          settle(data.session ? "ready" : "invalid");
+          return;
+        }
+        consumedTokens.add(tokenHash);
         const { error: verifyError } = await supabase.auth.verifyOtp({
           type: "recovery",
           token_hash: tokenHash,
         });
+        if (!verifyError) {
+          // Strip the spent token so a remount can't try to reuse it.
+          window.history.replaceState({}, "", window.location.pathname);
+        }
         settle(verifyError ? "invalid" : "ready");
         return;
       }

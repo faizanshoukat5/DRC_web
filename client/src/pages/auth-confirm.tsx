@@ -9,6 +9,9 @@ import { supabase } from "@/lib/supabaseClient";
 
 type Status = "verifying" | "success" | "error";
 
+// Guards against a remount re-running verifyOtp with an already-spent token.
+const consumedTokens = new Set<string>();
+
 // Handles email confirmation links that use {{ .TokenHash }} (scanner-proof:
 // the one-time token is only consumed when verifyOtp runs in the browser, so
 // email link pre-fetchers like Gmail can't burn it). On success the user has a
@@ -37,33 +40,40 @@ export default function AuthConfirmPage() {
         return;
       }
 
-      const tokenHash = query.get("token_hash") ?? hashParams.get("token_hash");
-      const type = (query.get("type") ?? hashParams.get("type") ?? "signup") as EmailOtpType;
-
-      if (tokenHash) {
-        const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+      // A session may already exist (prior mount verified it, or implicit flow
+      // processed the fragment) — use it rather than re-verifying a spent token.
+      const { data: existing } = await supabase.auth.getSession();
+      if (existing.session) {
         if (!active) return;
-        if (error) {
-          setStatus("error");
-          setMessage(error.message || "We couldn't confirm your email.");
-          return;
-        }
         setStatus("success");
         setTimeout(() => navigate("/"), 1500);
         return;
       }
 
-      // Fallback: an implicit-flow token in the fragment was already turned into
-      // a session by supabase-js during initialization.
-      const { data } = await supabase.auth.getSession();
-      if (!active) return;
-      if (data.session) {
+      const tokenHash = query.get("token_hash") ?? hashParams.get("token_hash");
+      const type = (query.get("type") ?? hashParams.get("type") ?? "signup") as EmailOtpType;
+
+      if (tokenHash) {
+        if (!consumedTokens.has(tokenHash)) {
+          consumedTokens.add(tokenHash);
+          const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+          if (!active) return;
+          if (error) {
+            setStatus("error");
+            setMessage(error.message || "We couldn't confirm your email.");
+            return;
+          }
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+        if (!active) return;
         setStatus("success");
         setTimeout(() => navigate("/"), 1500);
-      } else {
-        setStatus("error");
-        setMessage("This confirmation link is missing its token or has already been used.");
+        return;
       }
+
+      if (!active) return;
+      setStatus("error");
+      setMessage("This confirmation link is missing its token or has already been used.");
     })();
 
     return () => {
