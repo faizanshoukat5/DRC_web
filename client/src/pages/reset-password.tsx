@@ -51,6 +51,21 @@ export default function ResetPasswordPage() {
         return;
       }
 
+      // Preferred flow: a token_hash in the query string (email template uses
+      // {{ .TokenHash }} instead of {{ .ConfirmationURL }}). This survives email
+      // link scanners (e.g. Gmail) that pre-fetch links, because the one-time
+      // token is only consumed when verifyOtp runs in the browser — scanners
+      // don't execute JS. Also works across devices.
+      const tokenHash = queryParams.get("token_hash") ?? hashParams.get("token_hash");
+      if (tokenHash) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          type: "recovery",
+          token_hash: tokenHash,
+        });
+        settle(verifyError ? "invalid" : "ready");
+        return;
+      }
+
       // PKCE fallback: if a one-time code is present, exchange it for a session.
       const code = queryParams.get("code");
       if (code) {
@@ -59,8 +74,8 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      // Implicit flow: the token in the URL fragment has already been turned into
-      // a session by the time getSession() resolves.
+      // Implicit flow fallback: the token in the URL fragment has already been
+      // turned into a session by the time getSession() resolves.
       const { data } = await supabase.auth.getSession();
       settle(data.session ? "ready" : "invalid");
     })();
