@@ -170,6 +170,10 @@ export default function ResultsPage() {
     scan.heatmapImageUrl;
 
   const showColormapToggle = hasDistinctHeatmap && meta.modelKey === "rp_v1";
+  const imageGridClass = hasDistinctHeatmap
+    ? "grid gap-5 lg:grid-cols-2"
+    : "mx-auto grid max-w-4xl grid-cols-1";
+  const imagePanelClass = "relative h-[min(62vh,560px)] min-h-[280px] w-full overflow-hidden rounded-lg bg-black shadow-md";
 
   const handleColormapChange = async (cm: string) => {
     setSelectedColormap(cm);
@@ -468,18 +472,14 @@ export default function ResultsPage() {
         {/* Top: side-by-side original + heatmap. Stacks under lg. */}
         <div className="mb-6">
           {scan.originalImageUrl ? (
-            <div
-              className={`grid gap-8 ${
-                hasDistinctHeatmap ? "md:grid-cols-2" : "grid-cols-1"
-              }`}
-            >
+            <div className={imageGridClass}>
               {/* Original fundus */}
               <figure className="space-y-2">
-                <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-black shadow-md">
+                <div className={imagePanelClass}>
                   <img
                     src={scan.originalImageUrl}
                     alt="Original fundus"
-                    className="absolute inset-0 h-full w-full object-contain"
+                    className="h-full w-full object-contain"
                     data-testid="img-fundus-original"
                   />
                   <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">
@@ -491,11 +491,11 @@ export default function ResultsPage() {
               {/* AI heatmap (only when distinct from original) */}
               {hasDistinctHeatmap && (
                 <figure className="space-y-2">
-                  <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-black shadow-md">
+                  <div className={imagePanelClass}>
                     <img
                       src={activeHeatmapUrl}
                       alt="AI Grad-CAM heatmap"
-                      className={`absolute inset-0 h-full w-full object-contain transition-opacity ${colormapLoading ? "opacity-40" : "opacity-100"}`}
+                      className={`h-full w-full object-contain transition-opacity ${colormapLoading ? "opacity-40" : "opacity-100"}`}
                       data-testid="img-fundus-heatmap"
                     />
                     {colormapLoading && (

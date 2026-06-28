@@ -28,7 +28,7 @@ function fromDbScan(record: DbScan): Scan {
     diagnosis: record.diagnosis,
     severity: record.severity,
     confidence: record.confidence,
-    doctorNotes: record.doctor_notes ?? undefined,
+    doctorNotes: record.doctor_notes ?? null,
     modelVersion: record.model_version,
     inferenceMode: record.inference_mode,
     inferenceTime: record.inference_time,

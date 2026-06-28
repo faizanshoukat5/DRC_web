@@ -35,7 +35,7 @@ export default function LandingPage() {
       if (mode === "signin") {
         await signInWithPassword(formState.email, formState.password);
       } else {
-        await signUpWithPassword({
+        const result = await signUpWithPassword({
           email: formState.email,
           password: formState.password,
           role,
@@ -47,7 +47,17 @@ export default function LandingPage() {
           licenseNumber: role === "doctor" ? formState.licenseNumber : undefined,
           specialty: role === "doctor" ? formState.specialty : undefined,
         });
-        setFeedback(role === "doctor" ? "Doctor account created. Await admin approval." : "Account created. You are signed in.");
+
+        if (result.requiresEmailConfirmation) {
+          setMode("signin");
+          setFeedback(
+            role === "doctor"
+              ? "Check your email to confirm your account. After confirming, sign in to finish setup and wait for admin approval."
+              : "Check your email to confirm your account, then sign in to finish setup.",
+          );
+        } else {
+          setFeedback(role === "doctor" ? "Doctor account created. Await admin approval." : "Account created. You are signed in.");
+        }
       }
     } catch (error) {
       console.error("Authentication error", error);

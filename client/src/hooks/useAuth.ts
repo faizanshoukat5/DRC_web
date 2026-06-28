@@ -20,6 +20,13 @@ export type SignUpPayload = {
   role: Exclude<UserRole, "admin">;
 };
 
+type SignUpProfilePayload = Omit<SignUpPayload, "password">;
+
+export type SignUpResult = {
+  requiresEmailConfirmation: boolean;
+  status: DoctorStatus;
+};
+
 type AuthState = {
   user: AuthProfile | null;
   isLoading: boolean;
@@ -29,6 +36,8 @@ type AuthState = {
   role: UserRole | null;
   doctorStatus: DoctorStatus | null;
 };
+
+const PENDING_SIGNUP_PROFILE_PREFIX = "aeye:pending-signup-profile";
 
 function mapAuthUser(user: User | null): { id: string; email?: string; metadata: Record<string, any> } | null {
   if (!user) return null;
@@ -64,6 +73,134 @@ async function fetchProfile(userId?: string): Promise<AuthProfile | null> {
   } as AuthProfile;
 }
 
+function statusForRole(role: Exclude<UserRole, "admin">): DoctorStatus {
+  return role === "doctor" ? "pending" : "approved";
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function isSignupRole(value: unknown): value is Exclude<UserRole, "admin"> {
+  return value === "patient" || value === "doctor";
+}
+
+function normalizeProfilePayload(value: unknown): SignUpProfilePayload | null {
+  const raw = value as Partial<SignUpProfilePayload> | null;
+  const email = optionalString(raw?.email);
+  const name = optionalString(raw?.name);
+
+  if (!email || !name || !isSignupRole(raw?.role)) {
+    return null;
+  }
+
+  return {
+    email,
+    role: raw.role,
+    name,
+    phone: optionalString(raw.phone),
+    dateOfBirth: optionalString(raw.dateOfBirth),
+    gender: optionalString(raw.gender),
+    address: optionalString(raw.address),
+    licenseNumber: optionalString(raw.licenseNumber),
+    specialty: optionalString(raw.specialty),
+  };
+}
+
+function pendingProfileKey(email: string) {
+  return `${PENDING_SIGNUP_PROFILE_PREFIX}:${email.trim().toLowerCase()}`;
+}
+
+function savePendingProfile(payload: SignUpProfilePayload) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(pendingProfileKey(payload.email), JSON.stringify(payload));
+  } catch (_) {
+    // localStorage can be unavailable in private/restricted browser modes.
+  }
+}
+
+function readPendingProfile(email?: string): SignUpProfilePayload | null {
+  if (!email || typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(pendingProfileKey(email));
+    return stored ? normalizeProfilePayload(JSON.parse(stored)) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearPendingProfile(email?: string) {
+  if (!email || typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(pendingProfileKey(email));
+  } catch (_) {}
+}
+
+function profilePayloadFromAuthUser(user: User): SignUpProfilePayload | null {
+  return normalizeProfilePayload({
+    ...(user.user_metadata ?? {}),
+    email: user.email,
+  });
+}
+
+async function upsertProfile(userId: string, payload: SignUpProfilePayload): Promise<DoctorStatus> {
+  const status = statusForRole(payload.role);
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: userId,
+      role: payload.role,
+      status,
+      email: payload.email,
+      name: payload.name,
+      phone: payload.phone ?? null,
+      date_of_birth: payload.dateOfBirth ?? null,
+      gender: payload.gender ?? null,
+      address: payload.address ?? null,
+      license_number: payload.licenseNumber ?? null,
+      specialty: payload.specialty ?? null,
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw new Error(error.message || "Failed to create profile");
+  }
+
+  return status;
+}
+
+async function ensureProfileForAuthUser(authUser: User | null): Promise<AuthProfile | null> {
+  const mappedAuthUser = mapAuthUser(authUser);
+  if (!authUser || !mappedAuthUser) return null;
+
+  const existingProfile = await fetchProfile(authUser.id);
+  if (existingProfile) {
+    return {
+      ...existingProfile,
+      email: existingProfile.email ?? mappedAuthUser.email,
+      profileImageUrl: mappedAuthUser.metadata?.avatar_url,
+    };
+  }
+
+  const pendingPayload = profilePayloadFromAuthUser(authUser) ?? readPendingProfile(authUser.email ?? undefined);
+  if (!pendingPayload) {
+    return null;
+  }
+
+  await upsertProfile(authUser.id, pendingPayload);
+  clearPendingProfile(pendingPayload.email);
+
+  const createdProfile = await fetchProfile(authUser.id);
+  if (!createdProfile) return null;
+
+  return {
+    ...createdProfile,
+    email: createdProfile.email ?? mappedAuthUser.email,
+    profileImageUrl: mappedAuthUser.metadata?.avatar_url,
+  };
+}
+
 export function useAuth() {
   const [user, setUser] = useState<AuthProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,17 +217,15 @@ export function useAuth() {
       if (!isMounted) return;
 
       if (error) {
-        // "Auth session missing" is expected when no user is signed in — not an error to surface
+        // "Auth session missing" is expected when no user is signed in, not an error to surface.
+        if (!error.message.toLowerCase().includes("session missing")) {
+          setLastError(error.message);
+        }
         setUser(null);
       } else {
         try {
-          const profile = await fetchProfile(data.user?.id);
-          const authUser = mapAuthUser(data.user ?? null);
-          if (profile && authUser) {
-            setUser({ ...profile, email: profile.email ?? authUser.email, profileImageUrl: authUser.metadata?.avatar_url });
-          } else {
-            setUser(null);
-          }
+          const profile = await ensureProfileForAuthUser(data.user ?? null);
+          setUser(profile);
         } catch (profileError: any) {
           setLastError(profileError.message ?? "Failed to load profile");
           setUser(null);
@@ -102,7 +237,7 @@ export function useAuth() {
     loadInitialUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (_event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true);
+      if (_event === "PASSWORD_RECOVERY") setIsPasswordRecovery(true);
       (async () => {
         if (!isMounted) return;
         if (!session?.user) {
@@ -112,13 +247,8 @@ export function useAuth() {
         }
 
         try {
-          const profile = await fetchProfile(session.user.id);
-          const authUser = mapAuthUser(session.user);
-          if (profile && authUser) {
-            setUser({ ...profile, email: profile.email ?? authUser.email, profileImageUrl: authUser.metadata?.avatar_url });
-          } else {
-            setUser(null);
-          }
+          const profile = await ensureProfileForAuthUser(session.user);
+          setUser(profile);
         } catch (profileError: any) {
           setLastError(profileError.message ?? "Failed to load profile");
           setUser(null);
@@ -146,13 +276,11 @@ export function useAuth() {
     }
 
     try {
-      const profile = await fetchProfile(data.user?.id);
-      const authUser = mapAuthUser(data.user);
-      if (profile && authUser) {
-        setUser({ ...profile, email: profile.email ?? authUser.email, profileImageUrl: authUser.metadata?.avatar_url });
-      } else {
-        setUser(null);
+      const profile = await ensureProfileForAuthUser(data.user);
+      if (!profile) {
+        throw new Error("Your account profile is missing. Please contact support or create the account again.");
       }
+      setUser(profile);
     } catch (profileError: any) {
       setLastError(profileError.message ?? "Failed to load profile");
       setUser(null);
@@ -165,14 +293,33 @@ export function useAuth() {
   }, []);
 
   const signUpWithPassword = useCallback(
-    async (payload: SignUpPayload) => {
+    async (payload: SignUpPayload): Promise<SignUpResult> => {
       const { email, password, role, ...profileData } = payload;
       setIsLoading(true);
       setLastError(null);
 
-      const { data, error } = await supabase.auth.signUp({
+      const profilePayload = normalizeProfilePayload({
+        ...profileData,
         email,
+        role,
+      });
+
+      if (!profilePayload) {
+        const message = "Please complete all required sign-up fields.";
+        setIsLoading(false);
+        setLastError(message);
+        throw new Error(message);
+      }
+
+      savePendingProfile(profilePayload);
+
+      const { data, error } = await supabase.auth.signUp({
+        email: profilePayload.email,
         password,
+        options: {
+          data: profilePayload,
+          emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
       });
 
       if (error) {
@@ -181,51 +328,26 @@ export function useAuth() {
         throw error;
       }
 
-      const accessToken = data.session?.access_token;
-      if (!accessToken) {
-        setIsLoading(false);
-        throw new Error("Sign-up succeeded but no session was returned. Please verify your email and try again.");
-      }
-
-      // Create the profile directly in Supabase (no server API required)
       const userId = data.user?.id;
-      if (!userId) {
+      const accessToken = data.session?.access_token;
+      if (!userId || !accessToken) {
+        setUser(null);
         setIsLoading(false);
-        throw new Error("Missing user id after sign-up");
-      }
-
-      // Doctors must be approved by admin; patients are auto-approved
-      const status = role === "doctor" ? "pending" : "approved";
-
-      const { error: insertErr } = await supabase.from("profiles").insert([
-        {
-          id: userId,
-          role,
-          status,
-          email,
-          name: profileData.name,
-          phone: profileData.phone,
-          date_of_birth: profileData.dateOfBirth,
-          gender: profileData.gender,
-          address: profileData.address,
-          license_number: profileData.licenseNumber,
-          specialty: profileData.specialty,
-        },
-      ]);
-
-      if (insertErr) {
-        setIsLoading(false);
-        throw new Error(insertErr.message || "Failed to create profile");
+        return {
+          requiresEmailConfirmation: true,
+          status: statusForRole(profilePayload.role),
+        };
       }
 
       try {
-        const profile = await fetchProfile(data.user?.id);
-        const authUser = mapAuthUser(data.user);
-        if (profile && authUser) {
-          setUser({ ...profile, email: profile.email ?? authUser.email, profileImageUrl: authUser.metadata?.avatar_url });
-        } else {
-          setUser(null);
+        await upsertProfile(userId, profilePayload);
+        clearPendingProfile(profilePayload.email);
+
+        const profile = await ensureProfileForAuthUser(data.user);
+        if (!profile) {
+          throw new Error("Profile was created, but could not be loaded.");
         }
+        setUser(profile);
       } catch (profileError: any) {
         setLastError(profileError.message ?? "Failed to load profile");
         setUser(null);
@@ -234,7 +356,10 @@ export function useAuth() {
       }
 
       setIsLoading(false);
-      return data;
+      return {
+        requiresEmailConfirmation: false,
+        status: statusForRole(profilePayload.role),
+      };
     },
     [],
   );
@@ -262,7 +387,7 @@ export function useAuth() {
 
   const requestPasswordReset = useCallback(async (email: string) => {
     const trimmed = email.trim();
-    if (!trimmed) throw new Error('Please enter your email address.');
+    if (!trimmed) throw new Error("Please enter your email address.");
     const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
@@ -270,7 +395,7 @@ export function useAuth() {
   }, []);
 
   const updatePassword = useCallback(async (newPassword: string) => {
-    if (!newPassword || newPassword.length < 8) throw new Error('Password must be at least 8 characters.');
+    if (!newPassword || newPassword.length < 8) throw new Error("Password must be at least 8 characters.");
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw new Error(error.message);
     setIsPasswordRecovery(false);

@@ -29,16 +29,20 @@ const faqCategories = [
     color: "bg-primary/10 text-primary",
     questions: [
       {
-        q: "What is RetinaAI?",
-        a: "RetinaAI is an AI-powered diabetic retinopathy detection platform. It analyzes fundus (eye) images to detect signs of diabetic retinopathy, providing severity grades, confidence scores, and explainable heatmaps to help doctors and patients understand the results."
+        q: "What is A-EYE?",
+        a: "A-EYE is an app that uses AI to screen for diabetic retinopathy — a diabetes-related eye condition. A doctor uploads a photo of your retina and the AI checks it for signs of damage in about 45 seconds. Results are shared with both you and your doctor."
+      },
+      {
+        q: "Is A-EYE a replacement for my eye doctor?",
+        a: "No — and this is important. A-EYE is a screening tool that helps doctors catch potential issues early. It is not a diagnosis. Your doctor always makes the final call on your eye health."
       },
       {
         q: "What is diabetic retinopathy?",
-        a: "Diabetic retinopathy is an eye condition that can affect people with diabetes. High blood sugar levels can damage the blood vessels in the retina (the light-sensitive tissue at the back of the eye), potentially leading to vision loss if untreated. Early detection through regular screening is crucial."
+        a: "It's an eye complication of diabetes. Over time, high blood sugar can damage tiny blood vessels in the back of the eye and affect your vision. The good news is that when caught early it can usually be managed — which is exactly what A-EYE helps with."
       },
       {
-        q: "How accurate is the AI analysis?",
-        a: "Our AI model has been trained on thousands of clinically validated fundus images and achieves high accuracy in detecting diabetic retinopathy. However, all results should be reviewed by a qualified healthcare professional for final diagnosis and treatment decisions."
+        q: "How reliable is the AI?",
+        a: "The AI has been trained on thousands of real retinal images and performs well at detecting signs of diabetic retinopathy. That said, no AI is perfect, so every result is meant to be reviewed by your doctor before any decisions are made."
       },
     ]
   },
@@ -48,20 +52,28 @@ const faqCategories = [
     color: "bg-emerald-100 text-emerald-700",
     questions: [
       {
-        q: "How do I get started as a patient?",
-        a: "Simply create an account by selecting 'Patient' during signup, fill in your details, and once registered, you'll be prompted to select an approved doctor from our network. Your doctor will then be able to upload and share your fundus scan results with you."
+        q: "How do I get started?",
+        a: "Sign up, choose 'Patient', and fill in your basic details. You'll then pick a doctor from our list of approved doctors. Once connected, your doctor can run scans and share results with you — no extra steps needed on your side."
       },
       {
-        q: "Can I upload my own fundus images?",
-        a: "Currently, fundus image uploads are handled by your assigned doctor to ensure image quality and proper clinical workflow. You can view all your scan results, download reports, and track your eye health history through your patient dashboard."
+        q: "Can I upload images myself?",
+        a: "Not at the moment. Your doctor handles image uploads to make sure the photos are good quality and the process follows proper medical guidelines. You'll see all your results in your dashboard as soon as they're ready."
       },
       {
-        q: "How do I view my scan results?",
-        a: "After your doctor uploads and analyzes your fundus images, the results will appear in your Patient Dashboard. You can see the severity grade, AI confidence score, heatmap visualizations, and download PDF reports for your records."
+        q: "Where do I find my results?",
+        a: "Your latest result shows up on your home screen as soon as your doctor analyses a scan. Click on it to see the full report — including what level of DR was found, your doctor's notes, and any follow-up date."
       },
       {
-        q: "Can I change my assigned doctor?",
-        a: "Yes, you can change your assigned doctor through the Select Doctor page. This allows you to choose from other approved doctors in our network if needed."
+        q: "What is the progression tracker?",
+        a: "It compares your latest scan to your previous one and tells you if things have gotten better, stayed the same, or need more attention. It's a quick way to see your eye health trend over time."
+      },
+      {
+        q: "Can I switch doctors?",
+        a: "Yes. Go to Select Doctor from your dashboard to connect with a different doctor whenever you need to."
+      },
+      {
+        q: "How do I delete my account?",
+        a: "Email us at fizu0678@gmail.com with the subject 'AEYE Account Deletion Request' from your registered email address. We'll confirm within 5 business days and delete everything within 30 days. Full instructions are on the Delete Account page."
       },
     ]
   },
@@ -71,66 +83,70 @@ const faqCategories = [
     color: "bg-blue-100 text-blue-700",
     questions: [
       {
-        q: "How do I register as a doctor?",
-        a: "Select 'Doctor' during signup and provide your medical license number, specialty, and other required information. Your account will be reviewed by our admin team for verification. Once approved, you'll have full access to the doctor dashboard."
+        q: "How do I sign up as a doctor?",
+        a: "Choose 'Doctor' when signing up and enter your licence number and specialty. Our team verifies your details — usually within 1–3 business days — and you'll get a notification once your account is approved."
       },
       {
-        q: "How long does doctor approval take?",
-        a: "Doctor approval typically takes 1-3 business days. Our admin team verifies your credentials to ensure platform security and patient safety. You'll be notified once your account is approved."
+        q: "How do I run a scan for a patient?",
+        a: "From your dashboard, find the patient, upload a clear retinal image, and click Analyse. You'll get the result — including the severity level, confidence percentage, and a heatmap — in under 45 seconds."
       },
       {
-        q: "How do I upload patient scans?",
-        a: "From your Doctor Dashboard, select a patient from your assigned patients list, then use the upload feature to submit fundus images. The AI will analyze the images and generate results including severity grade, confidence score, and heatmaps within seconds."
+        q: "Can I write notes and set follow-up dates?",
+        a: "Yes. On any result page you can add your clinical notes and pick a follow-up date. The patient will see your notes and the follow-up reminder on their dashboard."
       },
       {
-        q: "Can I add notes to patient reports?",
-        a: "Yes, you can add clinical notes and observations to each scan report. These notes are visible to both you and the patient, helping provide context and recommendations alongside the AI analysis."
+        q: "Can I track how a patient's condition is changing?",
+        a: "Yes. The results page shows whether things have worsened, improved, or stayed stable compared to the last scan. In the scan history list, each entry has a colour-coded badge so you can spot trends at a glance."
       },
     ]
   },
   {
-    title: "Technical & Security",
+    title: "Privacy & Security",
     icon: Shield,
     color: "bg-amber-100 text-amber-700",
     questions: [
       {
-        q: "Is my data secure?",
-        a: "Yes, we take data security seriously. All data is encrypted in transit and at rest. We use secure cloud infrastructure and follow healthcare data protection best practices. Patient data is only accessible to the assigned doctor and the patient themselves."
+        q: "Is my data safe?",
+        a: "Yes. All your information is encrypted — both when it's being sent and when it's stored. Patients can only see their own records, and doctors can only see records of patients connected to them. Nobody else has access."
       },
       {
-        q: "What image formats are supported?",
-        a: "We support common image formats including JPEG, PNG, and TIFF. For best results, use high-resolution fundus images captured with standard fundus cameras. The AI model works best with clear, well-lit images."
+        q: "Are my retinal images stored?",
+        a: "Your images are stored securely in your account so you and your doctor can access them later. When the AI analyses an image, it processes it in memory and doesn't keep a separate copy — only the result is saved."
       },
       {
-        q: "How fast are the results?",
-        a: "AI analysis typically completes in under 45 seconds. You'll see the severity grade, confidence score, and heatmap visualization as soon as processing is complete."
+        q: "What data does A-EYE collect?",
+        a: "We collect the basics needed to run the app — your name, email, and role — plus any retinal images and results linked to your account. We never sell your data or use it for advertising."
       },
       {
-        q: "Can I download my reports?",
-        a: "Yes, both patients and doctors can download PDF reports for each scan. These reports include the original image, AI analysis results, heatmaps, and any clinical notes added by the doctor."
+        q: "Is A-EYE available on Android?",
+        a: "Yes. A-EYE is available on Android via the Google Play Store. This web version is also available so you can use it from any browser without installing anything."
       },
     ]
   },
   {
-    title: "Understanding Results",
+    title: "Understanding Your Results",
     icon: FileText,
     color: "bg-purple-100 text-purple-700",
     questions: [
       {
-        q: "What do the severity grades mean?",
-        a: "The AI provides severity grades from No DR (no diabetic retinopathy detected) to Severe (advanced diabetic retinopathy). Grades include: No DR, Mild, Moderate, and Severe. Higher grades indicate more advanced disease requiring urgent medical attention."
+        q: "What do the severity levels mean?",
+        a: "There are 5 levels: No DR (no signs — great!), Mild (very early signs), Moderate (more noticeable changes), Severe (significant changes that need attention), and Proliferative DR (the most advanced stage — urgent referral needed). Your doctor will explain what the result means for you specifically."
       },
       {
-        q: "What is the confidence score?",
-        a: "The confidence score (0-100%) indicates how certain the AI model is about its prediction. Higher scores suggest more reliable results. Lower confidence scores may indicate image quality issues or borderline cases that require careful clinical review."
+        q: "What is the confidence percentage?",
+        a: "It shows how sure the AI is about its result. A high percentage means the AI is confident. A lower number doesn't mean the result is wrong — it often just means the image was borderline or the photo quality could be better. Your doctor takes this into account."
       },
       {
-        q: "What are heatmaps?",
-        a: "Heatmaps are visual overlays on the fundus image that highlight areas the AI identified as important for its diagnosis. Red/warm areas indicate regions with potential abnormalities, helping doctors understand and verify the AI's analysis."
+        q: "What is the heatmap?",
+        a: "It's a coloured highlight on your retinal image showing which parts of the eye the AI focused on. Warmer colours (red, orange) mark the areas of most concern. It helps your doctor quickly verify what the AI noticed and decide whether they agree."
       },
       {
-        q: "Should I rely solely on AI results?",
-        a: "No. While our AI is a powerful screening tool, it should be used to assist—not replace—professional medical judgment. Always consult with your doctor for final diagnosis, treatment recommendations, and follow-up care."
+        q: "Can I download my report?",
+        a: "Yes. Open any scan result and click Share PDF Report. You'll get a PDF with the image, AI result, your doctor's notes, and the follow-up date — useful to bring to other appointments or keep for your records."
+      },
+      {
+        q: "Should I be worried if my result is not No DR?",
+        a: "Not necessarily — that's why you have a doctor. A-EYE flags things that need a closer look, but only your doctor can tell you what the result means for your health and what steps, if any, to take."
       },
     ]
   },
@@ -155,7 +171,7 @@ export default function FAQPage() {
                 Frequently Asked Questions
               </h1>
               <p className="text-sm text-slate-500">
-                Find answers to common questions about RetinaAI
+                Common questions about A-EYE, answered simply
               </p>
             </div>
           </div>
@@ -217,7 +233,7 @@ export default function FAQPage() {
                   Still have questions?
                 </h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  If you couldn't find the answer you were looking for, please contact your healthcare provider or reach out to our support team for assistance.
+                  Email us at <span className="font-medium text-primary">fizu0678@gmail.com</span> and we'll get back to you as soon as we can.
                 </p>
               </div>
             </div>
