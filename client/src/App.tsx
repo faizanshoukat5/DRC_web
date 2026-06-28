@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -21,9 +21,18 @@ import PrivacyPage from "@/pages/privacy";
 import DeleteAccountPage from "@/pages/delete-account";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
+import AuthConfirmPage from "@/pages/auth-confirm";
 
 function Router() {
   const { isAuthenticated, isLoading, isPasswordRecovery, role, doctorStatus } = useAuth();
+  const [location] = useLocation();
+
+  // Email-confirmation links land here; render regardless of auth state so the
+  // verifyOtp handler runs cleanly without a NotFound flash during the
+  // unauthenticated -> authenticated transition.
+  if (location === "/auth/confirm") {
+    return <AuthConfirmPage />;
+  }
 
   // Always show reset-password page when coming from a reset email link
   if (isPasswordRecovery) {
