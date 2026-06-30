@@ -169,7 +169,10 @@ export default function ResultsPage() {
     heatmapUrlMap[Object.keys(heatmapUrlMap)[0]] ??
     scan.heatmapImageUrl;
 
-  const showColormapToggle = hasDistinctHeatmap && meta.modelKey === "rp_v1";
+  // Show the colormap picker for any scan with a heatmap EXCEPT the partner
+  // model — on-demand recolor only supports rp_v1 (AEYE). Scans created before
+  // modelKey was recorded (no meta.modelKey) are treated as rp_v1.
+  const showColormapToggle = hasDistinctHeatmap && meta.modelKey !== "partner";
   const imageGridClass = hasDistinctHeatmap
     ? "grid gap-5 lg:grid-cols-2"
     : "mx-auto grid max-w-4xl grid-cols-1";
