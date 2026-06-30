@@ -685,6 +685,31 @@ export async function registerRoutes(
             console.warn(`Heatmap decode/upload (${cm}) threw:`, e);
           }
         }
+        // Fallback: /predict intermittently returns a prediction with NO heatmap.
+        // When that happens, generate one via the fast single-pass /recolor
+        // endpoint so a real Grad-CAM is always stored — otherwise the Results
+        // page treats heatmap == original and hides the heatmap panel.
+        // (recolor only supports rp_v1; partner scans without a heatmap fall back.)
+        if (prediction && Object.keys(heatmapUrls).length === 0 && modelKey === "rp_v1") {
+          try {
+            const b64 = await recolorFundus(file.buffer, file.mimetype, file.originalname, colormap as Colormap);
+            if (b64) {
+              const buf = heatmapBufferFromBase64(b64);
+              const k = `images/${Date.now()}_${Math.random().toString(36).slice(2)}_heatmap_${colormap}.png`;
+              const { error: err } = await supabaseAdmin.storage
+                .from("images")
+                .upload(k, buf, { contentType: "image/png" });
+              if (!err) {
+                heatmapUrls[colormap] = supabaseAdmin.storage.from("images").getPublicUrl(k).data.publicUrl;
+              } else {
+                console.warn("Heatmap recolor-fallback upload failed:", err.message);
+              }
+            }
+          } catch (e: any) {
+            console.warn("Heatmap recolor fallback failed:", e?.message ?? e);
+          }
+        }
+
         // Pick the user's chosen colormap as the canonical heatmap_image_url,
         // falling back to whatever rendered first if that one happens to fail.
         if (heatmapUrls[colormap]) {
